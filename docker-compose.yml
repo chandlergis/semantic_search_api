@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  web:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8500:8500"  # 修正端口映射，确保内外端口一致
+    volumes:
+      - .:/app
+      - /app/__pycache__
+      - /app/*.pyc
+    depends_on:
+      db:
+        condition: service_healthy  # 确保数据库完全就绪
+    environment:
+      - SQLALCHEMY_DATABASE_URI=postgresql://postgres:password@db:5432/semantic_search
+      - ENVIRONMENT=development
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: semantic_search
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
