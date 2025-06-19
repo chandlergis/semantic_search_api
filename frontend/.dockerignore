@@ -1,0 +1,17 @@
+# 忽略 Node 依赖和构建产物
+node_modules
+dist
+build
+
+# 忽略日志文件和环境变量文件
+npm-debug.log*
+.env
+.env.*
+
+# 忽略操作系统和 IDE 生成的文件
+.DS_Store
+Thumbs.db
+*.suo
+*.user
+.idea
+.vscode
