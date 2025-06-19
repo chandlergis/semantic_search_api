@@ -1,7 +1,7 @@
 from pydantic import BaseSettings
 
 class Settings(BaseSettings):
-    SQLALCHEMY_DATABASE_URI: str = "postgresql://user:password@localhost/dbname"
+    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/semantic_search"
     SECRET_KEY: str = "your-secret-key-here-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30

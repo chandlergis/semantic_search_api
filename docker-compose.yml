@@ -1,47 +1,65 @@
 version: '3.8'
 
 services:
-  web:
+  # PostgreSQL数据库
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: semantic_search
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # 后端API服务
+  backend:
     build: 
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "8500:8500"  # 修正端口映射，确保内外端口一致
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/semantic_search
+      - SECRET_KEY=your-secret-key-here-change-in-production
+      - ENVIRONMENT=development
     volumes:
-      - .:/app
-      - /app/__pycache__
-      - /app/*.pyc
+      - ./uploads:/app/uploads
+      - ./app:/app/app  # 开发模式下挂载代码
+    ports:
+      - "8500:8500"
     depends_on:
       db:
-        condition: service_healthy  # 确保数据库完全就绪
-    environment:
-      - SQLALCHEMY_DATABASE_URI=postgresql://postgres:password@db:5432/semantic_search
-      - ENVIRONMENT=development
-    restart: unless-stopped
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8500/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  db:
-    image: postgres:13
-    environment:
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: semantic_search
-      POSTGRES_HOST_AUTH_METHOD: trust
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+
+  # 前端Web应用
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "30080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:
     driver: local
+
+networks:
+  default:
+    driver: bridge
