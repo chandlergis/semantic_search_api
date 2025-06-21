@@ -102,7 +102,7 @@ const API_BASE_URL = 'http://localhost:8500/api'
 {
   "build": {
     "appId": "com.semantic.search",
-    "productName": "语义搜索",
+    "productName": "语义匹配",
     "win": {
       "target": "nsis"
     },

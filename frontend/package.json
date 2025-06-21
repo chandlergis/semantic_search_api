@@ -1,0 +1,27 @@
+{
+  "name": "semantic-search-web",
+  "version": "1.0.0",
+  "description": "语义匹配Web应用",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "serve": "vite preview --port 3000 --host"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "axios": "^1.6.0",
+    "element-plus": "^2.4.4",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@vitejs/plugin-vue": "^4.5.0",
+    "typescript": "^5.2.0",
+    "vite": "^5.0.0",
+    "vue-tsc": "^2.2.10"
+  }
+}

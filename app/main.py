@@ -6,7 +6,7 @@ from app.db.base import Base, engine
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI()
+app = FastAPI(root_path="/scdlsearch")
 
 # 启动时创建数据库表
 @app.on_event("startup")

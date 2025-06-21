@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, Depends, HTTPException, status, Query
+from fastapi import APIRouter, UploadFile, Depends, HTTPException, status, Query, Form
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -13,23 +13,34 @@ router = APIRouter(prefix="/api/documents", tags=["documents"])
 @router.post("/upload", response_model=DocumentRead)
 async def upload_document(
     file: UploadFile,
-    project_id: Optional[str] = None,
+    project_id: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
     """上传文档"""
+    print(f"[DEBUG] 上传文档请求:")
+    print(f"[DEBUG] - file.filename: {file.filename}")
+    print(f"[DEBUG] - project_id: {project_id}")
+    print(f"[DEBUG] - user_id: {current_user.id}")
+    
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No file provided"
         )
     
-    return await document_service.upload_and_process_document(
+    result = await document_service.upload_and_process_document(
         db=db,
         file=file,
         user_id=current_user.id,
         project_id=project_id
     )
+    
+    print(f"[DEBUG] 上传结果:")
+    print(f"[DEBUG] - document_id: {result.id}")
+    print(f"[DEBUG] - document_project_id: {result.project_id}")
+    
+    return result
 
 @router.get("/{document_id}", response_model=DocumentRead)
 async def get_document(

@@ -97,7 +97,13 @@ class DocumentService:
         ).first()
         
         if existing_doc:
-            # 如果文件已存在，返回现有文档
+            # 如果文件已存在，检查是否需要更新project_id
+            if project_id and existing_doc.project_id != project_id:
+                print(f"[DEBUG] 文件已存在，更新project_id: {existing_doc.project_id} -> {project_id}")
+                existing_doc.project_id = project_id
+                db.commit()
+                db.refresh(existing_doc)
+            print(f"[DEBUG] 返回已存在文档: {existing_doc.id}, project_id: {existing_doc.project_id}")
             return DocumentRead.from_orm(existing_doc)
         
         # 生成文件ID和路径
@@ -112,6 +118,7 @@ class DocumentService:
             await f.write(content)
         
         # 创建数据库记录
+        print(f"[DEBUG] 创建新文档记录，project_id: {project_id}")
         db_document = Document(
             id=file_id,
             filename=filename,
@@ -128,6 +135,7 @@ class DocumentService:
         db.add(db_document)
         db.commit()
         db.refresh(db_document)
+        print(f"[DEBUG] 新文档创建完成: {db_document.id}, project_id: {db_document.project_id}")
         
         # 异步处理文档
         await self._process_document_async(db, db_document)

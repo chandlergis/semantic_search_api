@@ -1,0 +1,592 @@
+<template>
+  <div class="projects-view">
+    <!-- 导航栏 -->
+    <div class="modern-header">
+      <div class="header-content">
+        <div class="logo-section">
+          <el-icon class="app-logo" :size="32">
+            <Search />
+          </el-icon>
+          <h3 class="app-name">语义匹配</h3>
+        </div>
+
+        <div class="nav-menu">
+          <router-link 
+            v-for="item in navItems" 
+            :key="item.path"
+            :to="item.path"
+            class="nav-item"
+            :class="{ active: activeIndex === item.path }"
+          >
+            <el-icon>
+              <component :is="item.icon" />
+            </el-icon>
+            <span>{{ item.label }}</span>
+          </router-link>
+        </div>
+
+        <div class="user-section">
+          <el-dropdown trigger="click" @command="handleUserCommand">
+            <div class="user-avatar">
+              <el-avatar :size="36" :src="userAvatar">
+                <el-icon><User /></el-icon>
+              </el-avatar>
+              <span class="username">{{ authStore.user?.username }}</span>
+              <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="profile">
+                  <el-icon><User /></el-icon>
+                  个人资料
+                </el-dropdown-item>
+                <el-dropdown-item command="settings">
+                  <el-icon><Setting /></el-icon>
+                  设置
+                </el-dropdown-item>
+                <el-dropdown-item divided command="logout">
+                  <el-icon><SwitchButton /></el-icon>
+                  退出登录
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </div>
+    </div>
+
+    <!-- 项目内容 -->
+    <div class="content">
+      <div class="content-header">
+        <h2>项目管理</h2>
+        <el-button type="primary" @click="showCreateDialog = true">
+          <el-icon><Plus /></el-icon>
+          创建项目
+        </el-button>
+      </div>
+
+      <div class="projects-container">
+        <!-- 加载状态 -->
+        <div v-if="loading" class="loading-container">
+          <el-skeleton :rows="3" animated />
+        </div>
+
+        <!-- 项目网格 -->
+        <div v-else-if="projects.length > 0" class="projects-grid">
+          <div 
+            v-for="project in projects" 
+            :key="project.id"
+            class="project-card card-hover"
+            @click="viewProject(project)"
+          >
+            <div class="card-header">
+              <div class="project-info">
+                <h3 class="project-name">{{ project.name }}</h3>
+                <p class="project-description">{{ project.description || '暂无描述' }}</p>
+              </div>
+              <el-dropdown @command="(cmd: string) => handleProjectCommand(cmd, project)" trigger="click" @click.stop>
+                <el-button type="text" class="more-btn">
+                  <el-icon><MoreFilled /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="edit">
+                      <el-icon><Edit /></el-icon>
+                      编辑
+                    </el-dropdown-item>
+                    <el-dropdown-item command="search">
+                      <el-icon><Search /></el-icon>
+                      在此项目中搜索
+                    </el-dropdown-item>
+                    <el-dropdown-item divided command="delete">
+                      <el-icon><Delete /></el-icon>
+                      删除
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+
+            <div class="card-stats">
+              <div class="stat-item">
+                <el-icon><Document /></el-icon>
+                <span>{{ project.document_count }} 个文档</span>
+              </div>
+              <div class="stat-item">
+                <el-icon><Clock /></el-icon>
+                <span>{{ formatDate(project.updated_at) }}</span>
+              </div>
+            </div>
+
+            <div class="card-footer">
+              <el-tag size="small" type="info">
+                {{ formatDate(project.created_at) }} 创建
+              </el-tag>
+            </div>
+          </div>
+        </div>
+
+        <!-- 空状态 -->
+        <div v-else class="empty-state">
+          <el-empty description="暂无项目">
+            <el-button type="primary" @click="showCreateDialog = true">
+              立即创建
+            </el-button>
+          </el-empty>
+        </div>
+      </div>
+
+      <!-- 分页 -->
+      <div v-if="totalProjects > pageSize" class="pagination">
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="pageSize"
+          :total="totalProjects"
+          layout="prev, pager, next, jumper"
+          @current-change="fetchProjects"
+        />
+      </div>
+    </div>
+
+    <!-- 创建/编辑项目对话框 -->
+    <el-dialog
+      v-model="showCreateDialog"
+      :title="editingProject ? '编辑项目' : '创建项目'"
+      width="500px"
+    >
+      <el-form
+        ref="projectFormRef"
+        :model="projectForm"
+        :rules="projectRules"
+        label-width="80px"
+      >
+        <el-form-item label="项目名称" prop="name">
+          <el-input
+            v-model="projectForm.name"
+            placeholder="请输入项目名称"
+          />
+        </el-form-item>
+        <el-form-item label="项目描述" prop="description">
+          <el-input
+            v-model="projectForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入项目描述（可选）"
+          />
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="cancelEdit">取消</el-button>
+          <el-button 
+            type="primary" 
+            @click="saveProject"
+            :loading="saving"
+          >
+            {{ editingProject ? '保存' : '创建' }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { 
+  Search, 
+  Document, 
+  User,
+  Setting,
+  ArrowDown,
+  SwitchButton,
+  Plus,
+  MoreFilled,
+  Edit,
+  Delete,
+  Folder,
+  Upload,
+  Clock
+} from '@element-plus/icons-vue'
+import { useAuthStore } from '@/stores/auth'
+import { projectService } from '@/services/api'
+import type { ProjectRead, ProjectCreate, ProjectWithDocuments } from '@/types/api'
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+// 导航配置
+const navItems = [
+  { path: '/search', label: '搜索', icon: Search },
+  { path: '/projects', label: '项目', icon: Folder },
+  { path: '/documents', label: '文档', icon: Document },
+  { path: '/upload', label: '上传', icon: Upload }
+]
+
+const activeIndex = computed(() => router.currentRoute.value.path)
+const userAvatar = computed(() => 
+  `https://api.dicebear.com/7.x/initials/svg?seed=${authStore.user?.username}`
+)
+
+// 项目管理
+const loading = ref(false)
+const saving = ref(false)
+const projects = ref<ProjectWithDocuments[]>([])
+const totalProjects = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(12)
+
+// 对话框
+const showCreateDialog = ref(false)
+const editingProject = ref<ProjectRead | null>(null)
+const projectFormRef = ref<FormInstance>()
+
+// 表单
+const projectForm = reactive<ProjectCreate & { id?: string }>({
+  name: '',
+  description: ''
+})
+
+const projectRules: FormRules = {
+  name: [
+    { required: true, message: '请输入项目名称', trigger: 'blur' },
+    { min: 2, max: 50, message: '项目名称长度在2到50个字符', trigger: 'blur' }
+  ]
+}
+
+// 获取项目列表
+const fetchProjects = async (page = 1) => {
+  loading.value = true
+  try {
+    const response = await projectService.getProjects({
+      page,
+      per_page: pageSize.value
+    })
+    projects.value = response.projects
+    totalProjects.value = response.total
+    currentPage.value = page
+  } catch (error) {
+    console.error('获取项目列表失败:', error)
+    ElMessage.error('获取项目列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 保存项目
+const saveProject = async () => {
+  if (!projectFormRef.value) return
+  
+  const valid = await projectFormRef.value.validate().catch(() => false)
+  if (!valid) return
+
+  saving.value = true
+  try {
+    if (editingProject.value) {
+      // 编辑项目
+      await projectService.updateProject(editingProject.value.id, {
+        name: projectForm.name,
+        description: projectForm.description
+      })
+      ElMessage.success('项目更新成功')
+    } else {
+      // 创建项目
+      await projectService.createProject({
+        name: projectForm.name,
+        description: projectForm.description
+      })
+      ElMessage.success('项目创建成功')
+    }
+    
+    showCreateDialog.value = false
+    await fetchProjects(currentPage.value)
+  } catch (error: any) {
+    console.error('保存项目失败:', error)
+    ElMessage.error(error.response?.data?.detail || '保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+// 取消编辑
+const cancelEdit = () => {
+  showCreateDialog.value = false
+  editingProject.value = null
+  projectForm.name = ''
+  projectForm.description = ''
+}
+
+// 查看项目
+const viewProject = (project: ProjectWithDocuments) => {
+  router.push(`/projects/${project.id}/documents`)
+}
+
+// 处理项目命令
+const handleProjectCommand = async (command: string, project: ProjectWithDocuments) => {
+  switch (command) {
+    case 'edit':
+      editingProject.value = project
+      projectForm.name = project.name
+      projectForm.description = project.description || ''
+      showCreateDialog.value = true
+      break
+    case 'search':
+      router.push({
+        path: '/search',
+        query: { project_id: project.id }
+      })
+      break
+    case 'delete':
+      try {
+        console.log('开始删除项目:', project.id, project.name)
+        
+        await ElMessageBox.confirm(
+          `确定要删除项目 "${project.name}" 吗？此操作无法撤销。`,
+          '确认删除',
+          {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        )
+        
+        console.log('用户确认删除，开始调用API')
+        const result = await projectService.deleteProject(project.id)
+        console.log('删除API调用结果:', result)
+        
+        ElMessage.success('项目删除成功')
+        console.log('刷新项目列表')
+        await fetchProjects(currentPage.value)
+      } catch (error: any) {
+        if (error !== 'cancel') {
+          console.error('删除项目失败:', error)
+          console.error('错误详情:', error.response?.data)
+          ElMessage.error('删除失败: ' + (error.response?.data?.detail || error.message))
+        } else {
+          console.log('用户取消删除')
+        }
+      }
+      break
+  }
+}
+
+// 处理用户菜单命令
+const handleUserCommand = async (command: string) => {
+  switch (command) {
+    case 'profile':
+      router.push('/profile')
+      break
+    case 'settings':
+      ElMessage.info('设置功能开发中...')
+      break
+    case 'logout':
+      try {
+        await ElMessageBox.confirm(
+          '确定要退出登录吗？',
+          '退出确认',
+          {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        )
+        authStore.logout()
+        ElMessage.success('已退出登录')
+        router.push('/login')
+      } catch {
+        // 用户取消
+      }
+      break
+  }
+}
+
+// 格式化日期
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString('zh-CN')
+}
+
+// 组件挂载时获取数据
+onMounted(() => {
+  fetchProjects()
+})
+</script>
+
+<style scoped>
+.projects-view {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+/* 复用导航栏样式 */
+.modern-header {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(229, 231, 235, 0.8);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  height: 64px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.logo-section,
+.nav-menu,
+.nav-item,
+.user-section,
+.user-avatar,
+.username,
+.dropdown-icon {
+  /* 复用之前定义的样式 */
+}
+
+/* 项目内容 */
+.content {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.content-header h2 {
+  margin: 0;
+  color: var(--gray-800);
+}
+
+.projects-container {
+  background: white;
+  border-radius: 1rem;
+  padding: 2rem;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 2rem;
+}
+
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.project-card {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all var(--transition-medium);
+}
+
+.project-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary-color);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.project-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--gray-800);
+  margin: 0 0 0.5rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-description {
+  color: var(--gray-600);
+  font-size: 0.875rem;
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.more-btn {
+  color: var(--gray-400);
+  padding: 0.25rem;
+}
+
+.card-stats {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--gray-600);
+  font-size: 0.875rem;
+}
+
+.stat-item .el-icon {
+  color: var(--primary-color);
+}
+
+.card-footer {
+  padding-top: 1rem;
+  border-top: 1px solid var(--gray-100);
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+}
+
+.loading-container {
+  padding: 2rem;
+}
+
+.empty-state {
+  padding: 3rem 0;
+  text-align: center;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .content {
+    padding: 1rem;
+  }
+  
+  .projects-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .content-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+}
+</style>
