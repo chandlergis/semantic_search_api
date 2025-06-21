@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { ElMessage } from 'element-plus'
 import type { 
   SearchQuery, 
   SearchResponse, 
@@ -52,7 +53,25 @@ apiClient.interceptors.response.use(
     return response.data
   },
   (error) => {
-    console.error('API Error:', error)
+    const defaultMessage = '请求失败，请稍后重试'
+    
+    // 处理401 Unauthorized错误
+    if (error.response && error.response.status === 401) {
+      if (window.location.hash !== '#/login') {
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('auth_user')
+        
+        ElMessage.error('会话已过期，请重新登录。')
+        
+        window.location.href = '/scdlsearch/#/login'
+      }
+    } else {
+      // 对于其他错误，显示后端返回的错误信息
+      const message = error.response?.data?.detail || error.message || defaultMessage;
+      ElMessage.error(message);
+      console.error('API Error:', message);
+    }
+    
     return Promise.reject(error)
   }
 )
