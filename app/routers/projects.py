@@ -67,12 +67,21 @@ async def delete_project(
     current_user = Depends(get_current_user)
 ):
     """删除项目"""
+    print(f"[DEBUG] 删除项目请求:")
+    print(f"[DEBUG] - project_id: {project_id}")
+    print(f"[DEBUG] - user_id: {current_user.id}")
+    
     success = project_service.delete_project(db, project_id, current_user.id)
+    print(f"[DEBUG] 删除结果: {success}")
+    
     if not success:
+        print(f"[DEBUG] 项目删除失败 - 项目不存在或无权限")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found"
         )
+    
+    print(f"[DEBUG] 项目删除成功")
     return {"message": "Project deleted successfully"}
 
 @router.post("/{project_id}/documents/{document_id}")
@@ -106,4 +115,18 @@ async def get_project_documents(
     current_user = Depends(get_current_user)
 ):
     """获取项目下的文档列表"""
-    return project_service.get_project_documents(db, project_id, current_user.id, page, per_page)
+    print(f"[DEBUG] 获取项目文档请求:")
+    print(f"[DEBUG] - project_id: {project_id}")
+    print(f"[DEBUG] - user_id: {current_user.id}")
+    print(f"[DEBUG] - page: {page}, per_page: {per_page}")
+    
+    result = project_service.get_project_documents(db, project_id, current_user.id, page, per_page)
+    
+    print(f"[DEBUG] 获取项目文档结果:")
+    print(f"[DEBUG] - 文档数量: {len(result.documents)}")
+    print(f"[DEBUG] - 总数: {result.total}")
+    if result.documents:
+        for i, doc in enumerate(result.documents):
+            print(f"[DEBUG] - 文档{i+1}: {doc.id} - {doc.filename} - project_id: {doc.project_id}")
+    
+    return result
