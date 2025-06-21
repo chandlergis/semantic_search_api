@@ -1,59 +1,6 @@
 <template>
   <div class="profile-view">
-    <!-- 导航栏 -->
-    <div class="modern-header">
-      <div class="header-content">
-        <div class="logo-section">
-          <el-icon class="app-logo" :size="32">
-            <Search />
-          </el-icon>
-          <h3 class="app-name">语义匹配</h3>
-        </div>
-
-        <div class="nav-menu">
-          <router-link 
-            v-for="item in navItems" 
-            :key="item.path"
-            :to="item.path"
-            class="nav-item"
-            :class="{ active: activeIndex === item.path }"
-          >
-            <el-icon>
-              <component :is="item.icon" />
-            </el-icon>
-            <span>{{ item.label }}</span>
-          </router-link>
-        </div>
-
-        <div class="user-section">
-          <el-dropdown trigger="click" @command="handleUserCommand">
-            <div class="user-avatar">
-              <el-avatar :size="36" :src="userAvatar">
-                <el-icon><User /></el-icon>
-              </el-avatar>
-              <span class="username">{{ authStore.user?.username }}</span>
-              <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
-            </div>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="profile">
-                  <el-icon><User /></el-icon>
-                  个人资料
-                </el-dropdown-item>
-                <el-dropdown-item command="settings">
-                  <el-icon><Setting /></el-icon>
-                  设置
-                </el-dropdown-item>
-                <el-dropdown-item divided command="logout">
-                  <el-icon><SwitchButton /></el-icon>
-                  退出登录
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-      </div>
-    </div>
+    <AppHeader />
 
     <!-- 个人资料内容 -->
     <div class="profile-content">
@@ -174,29 +121,12 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { 
-  Search, 
-  User,
-  Setting,
-  ArrowDown,
-  SwitchButton,
-  Camera
-} from '@element-plus/icons-vue'
+import { User, Camera } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import AppHeader from '@/components/AppHeader.vue'
 
-const router = useRouter()
 const authStore = useAuthStore()
 
-// 导航配置
-const navItems = [
-  { path: '/search', label: '搜索', icon: 'Search' },
-  { path: '/documents', label: '文档', icon: 'Document' },
-  { path: '/upload', label: '上传', icon: 'Upload' }
-]
-
-const activeIndex = computed(() => router.currentRoute.value.path)
 const userAvatar = computed(() => 
   `https://api.dicebear.com/7.x/initials/svg?seed=${authStore.user?.username}`
 )
@@ -227,134 +157,12 @@ const formatDate = (dateString?: string) => {
     day: 'numeric'
   })
 }
-
-// 处理用户菜单命令
-const handleUserCommand = async (command: string) => {
-  switch (command) {
-    case 'profile':
-      // 已在个人资料页面
-      break
-    case 'settings':
-      ElMessage.info('设置功能开发中...')
-      break
-    case 'logout':
-      try {
-        await ElMessageBox.confirm(
-          '确定要退出登录吗？',
-          '退出确认',
-          {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
-        )
-        authStore.logout()
-        ElMessage.success('已退出登录')
-        router.push('/login')
-      } catch {
-        // 用户取消
-      }
-      break
-  }
-}
 </script>
 
 <style scoped>
 .profile-view {
   min-height: 100vh;
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-}
-
-/* 复用导航栏样式 */
-.modern-header {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(229, 231, 235, 0.8);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.header-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2rem;
-  height: 64px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.logo-section {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.app-logo {
-  color: var(--primary-color);
-}
-
-.app-name {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--gray-800);
-  margin: 0;
-}
-
-.nav-menu {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
-  color: var(--gray-600);
-  text-decoration: none;
-  font-weight: 500;
-  transition: all var(--transition-medium);
-}
-
-.nav-item:hover {
-  background: var(--gray-100);
-  color: var(--primary-color);
-}
-
-.nav-item.active {
-  background: var(--primary-color);
-  color: white;
-}
-
-.user-section {
-  position: relative;
-}
-
-.user-avatar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem;
-  border-radius: 0.75rem;
-  cursor: pointer;
-  transition: all var(--transition-medium);
-}
-
-.user-avatar:hover {
-  background: var(--gray-100);
-}
-
-.username {
-  font-weight: 500;
-  color: var(--gray-700);
-}
-
-.dropdown-icon {
-  color: var(--gray-400);
-  font-size: 0.875rem;
 }
 
 /* 个人资料内容 */

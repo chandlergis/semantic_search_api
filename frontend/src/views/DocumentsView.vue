@@ -133,7 +133,10 @@ const deleteDocument = async (document: DocumentRead) => {
     );
 
     await documentService.deleteDocument(document.id);
-    ElMessage.success('删除成功');
+    ElMessage.success({
+      message: '删除成功',
+      duration: 1500
+    });
     await fetchDocuments(); // 重新获取列表
   } catch (error: any) {
     if (error !== 'cancel') {

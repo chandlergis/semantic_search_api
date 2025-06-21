@@ -12,6 +12,12 @@
         </el-icon>
         <span>{{ item.label }}</span>
       </li>
+      <li @click="toggleTheme">
+        <el-icon>
+          <component :is="'Moon'" />
+        </el-icon>
+        <span>Dark</span>
+      </li>
     </ul>
   </nav>
 </template>
@@ -34,6 +40,10 @@ const activeIndex = computed(() => router.currentRoute.value.path)
 
 const navigate = (path: string) => {
   router.push(path)
+}
+
+const toggleTheme = () => {
+  // Theme toggle functionality removed
 }
 </script>
 
