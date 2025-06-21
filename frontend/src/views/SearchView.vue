@@ -1,62 +1,6 @@
 <template>
   <div class="search-view">
-    <!-- 现代化导航栏 -->
-    <div class="modern-header">
-      <div class="header-content">
-        <!-- Logo区域 -->
-        <div class="logo-section">
-          <el-icon class="app-logo" :size="32">
-            <Search />
-          </el-icon>
-          <h3 class="app-name">语义匹配</h3>
-        </div>
-
-        <!-- 导航菜单 -->
-        <div class="nav-menu">
-          <router-link 
-            v-for="item in navItems" 
-            :key="item.path"
-            :to="item.path"
-            class="nav-item"
-            :class="{ active: activeIndex === item.path }"
-          >
-            <el-icon>
-              <component :is="item.icon" />
-            </el-icon>
-            <span>{{ item.label }}</span>
-          </router-link>
-        </div>
-
-        <!-- 用户区域 -->
-        <div class="user-section">
-          <el-dropdown trigger="click" @command="handleUserCommand">
-            <div class="user-avatar">
-              <el-avatar :size="36" :src="userAvatar">
-                <el-icon><User /></el-icon>
-              </el-avatar>
-              <span class="username">{{ authStore.user?.username }}</span>
-              <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
-            </div>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="profile">
-                  <el-icon><User /></el-icon>
-                  个人资料
-                </el-dropdown-item>
-                <el-dropdown-item command="settings">
-                  <el-icon><Setting /></el-icon>
-                  设置
-                </el-dropdown-item>
-                <el-dropdown-item divided command="logout">
-                  <el-icon><SwitchButton /></el-icon>
-                  退出登录
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-      </div>
-    </div>
+    <AppHeader />
 
     <!-- 优化的搜索区域 -->
     <div class="search-hero" :class="{ collapsed: isSearchCollapsed }">
@@ -274,198 +218,145 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, reactive } from 'vue';
+import { ElMessage } from 'element-plus';
 import { 
   Search, 
   CopyDocument,
-  User,
   Setting,
   ArrowDown,
   ArrowUp,
-  SwitchButton,
   UploadFilled
-} from '@element-plus/icons-vue'
-import type { SearchResponse } from '@/types/api'
-import { searchService } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
-
-const router = useRouter()
-const authStore = useAuthStore()
-
-// 导航配置
-const navItems = [
-  { path: '/search', label: '搜索', icon: 'Search' },
-  { path: '/projects', label: '项目', icon: 'Folder' },
-  { path: '/documents', label: '文档', icon: 'Document' },
-  { path: '/upload', label: '上传', icon: 'Upload' }
-]
-
-// 当前激活的菜单项
-const activeIndex = computed(() => router.currentRoute.value.path)
-
-// 用户头像
-const userAvatar = computed(() => {
-  // 这里可以根据用户信息生成头像URL
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${authStore.user?.username}`
-})
+} from '@element-plus/icons-vue';
+import type { SearchResponse } from '@/types/api';
+import { searchService } from '@/services/api';
+import AppHeader from '@/components/AppHeader.vue';
 
 // 搜索相关状态
-const searchMode = ref<'text' | 'document'>('text')
-const searchQuery = ref('')
-const loading = ref(false)
-const hasSearched = ref(false)
-const searchResults = ref<SearchResponse | null>(null)
-const showAdvanced = ref(false)
-const selectedFile = ref<File | null>(null)
-const uploadRef = ref()
-const isSearchCollapsed = ref(false)
+const searchMode = ref<'text' | 'document'>('text');
+const searchQuery = ref('');
+const loading = ref(false);
+const hasSearched = ref(false);
+const searchResults = ref<SearchResponse | null>(null);
+const showAdvanced = ref(false);
+const selectedFile = ref<File | null>(null);
+const uploadRef = ref();
+const isSearchCollapsed = ref(false);
 
 // 搜索选项
 const searchOptions = reactive({
   top_k: 10,
   bm25_weight: 0.6,
   tfidf_weight: 0.4
-})
+});
 
 // 执行文本搜索
 const handleSearch = async () => {
   if (!searchQuery.value.trim()) {
-    ElMessage.warning('请输入搜索内容')
-    return
+    ElMessage.warning('请输入搜索内容');
+    return;
   }
 
-  loading.value = true
-  hasSearched.value = true
+  loading.value = true;
+  hasSearched.value = true;
 
   try {
     const response = await searchService.textSearch({
       query: searchQuery.value,
       ...searchOptions
-    })
-    searchResults.value = response
+    });
+    searchResults.value = response;
     
     if (response.chunks.length === 0) {
-      ElMessage.info('没有找到相关结果')
+      ElMessage.info('没有找到相关结果');
     } else {
       // 有结果时自动收起搜索区域
       setTimeout(() => {
-        isSearchCollapsed.value = true
-      }, 500)
+        isSearchCollapsed.value = true;
+      }, 500);
     }
   } catch (error) {
-    console.error('搜索失败:', error)
-    ElMessage.error('搜索失败，请检查网络连接')
-    searchResults.value = null
+    console.error('搜索失败:', error);
+    ElMessage.error('搜索失败，请检查网络连接');
+    searchResults.value = null;
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 // 处理文件选择
 const handleFileChange = (file: any) => {
-  selectedFile.value = file.raw
-  console.log('选择文件:', file.name)
-}
+  selectedFile.value = file.raw;
+  console.log('选择文件:', file.name);
+};
 
 // 处理文件移除
 const handleFileRemove = () => {
-  selectedFile.value = null
-  console.log('移除文件')
-}
+  selectedFile.value = null;
+  console.log('移除文件');
+};
 
 // 执行文档匹配
 const handleDocumentMatch = async () => {
   if (!selectedFile.value) {
-    ElMessage.warning('请先选择要匹配的文档')
-    return
+    ElMessage.warning('请先选择要匹配的文档');
+    return;
   }
 
-  loading.value = true
-  hasSearched.value = true
+  loading.value = true;
+  hasSearched.value = true;
 
   try {
-    const response = await searchService.fileSearch(selectedFile.value, searchOptions)
-    searchResults.value = response
+    const response = await searchService.fileSearch(selectedFile.value, searchOptions);
+    searchResults.value = response;
     
     if (response.chunks.length === 0) {
-      ElMessage.info('没有找到匹配的文档内容')
+      ElMessage.info('没有找到匹配的文档内容');
     } else {
-      ElMessage.success(`找到 ${response.total_documents} 个相关文档`)
+      ElMessage.success(`找到 ${response.total_documents} 个相关文档`);
       // 有结果时自动收起搜索区域
       setTimeout(() => {
-        isSearchCollapsed.value = true
-      }, 500)
+        isSearchCollapsed.value = true;
+      }, 500);
     }
   } catch (error) {
-    console.error('文档匹配失败:', error)
-    ElMessage.error('文档匹配失败，请检查网络连接')
-    searchResults.value = null
+    console.error('文档匹配失败:', error);
+    ElMessage.error('文档匹配失败，请检查网络连接');
+    searchResults.value = null;
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 // 切换搜索区域显示/隐藏
 const toggleSearchArea = () => {
-  isSearchCollapsed.value = !isSearchCollapsed.value
-}
+  isSearchCollapsed.value = !isSearchCollapsed.value;
+};
 
 // 高亮搜索关键词
 const highlightText = (text: string, query: string) => {
-  if (!query.trim()) return text
+  if (!query.trim()) return text;
   
-  const keywords = query.trim().split(/\s+/)
-  let highlighted = text
+  const keywords = query.trim().split(/\s+/);
+  let highlighted = text;
   
   keywords.forEach(keyword => {
-    const regex = new RegExp(`(${keyword})`, 'gi')
-    highlighted = highlighted.replace(regex, '<mark>$1</mark>')
-  })
+    const regex = new RegExp(`(${keyword})`, 'gi');
+    highlighted = highlighted.replace(regex, '<mark>$1</mark>');
+  });
   
-  return highlighted
-}
+  return highlighted;
+};
 
 // 复制内容
 const copyContent = async (content: string) => {
   try {
-    await navigator.clipboard.writeText(content)
-    ElMessage.success('内容已复制到剪贴板')
+    await navigator.clipboard.writeText(content);
+    ElMessage.success('内容已复制到剪贴板');
   } catch (error) {
-    ElMessage.error('复制失败')
+    ElMessage.error('复制失败');
   }
-}
-
-// 处理用户菜单命令
-const handleUserCommand = async (command: string) => {
-  switch (command) {
-    case 'profile':
-      router.push('/profile')
-      break
-    case 'settings':
-      ElMessage.info('设置功能开发中...')
-      break
-    case 'logout':
-      try {
-        await ElMessageBox.confirm(
-          '确定要退出登录吗？',
-          '退出确认',
-          {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
-        )
-        authStore.logout()
-        ElMessage.success('已退出登录')
-        router.push('/login')
-      } catch {
-        // 用户取消
-      }
-      break
-  }
-}
+};
 </script>
 
 <style scoped>
@@ -476,105 +367,13 @@ const handleUserCommand = async (command: string) => {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
-/* 现代化导航栏 */
-.modern-header {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(229, 231, 235, 0.8);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.header-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2rem;
-  height: 64px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.logo-section {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.app-logo {
-  color: var(--primary-color);
-}
-
-.app-name {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--gray-800);
-  margin: 0;
-}
-
-.nav-menu {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
-  color: var(--gray-600);
-  text-decoration: none;
-  font-weight: 500;
-  transition: all var(--transition-medium);
-}
-
-.nav-item:hover {
-  background: var(--gray-100);
-  color: var(--primary-color);
-}
-
-.nav-item.active {
-  background: var(--primary-color);
-  color: white;
-}
-
-.user-section {
-  position: relative;
-}
-
-.user-avatar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem;
-  border-radius: 0.75rem;
-  cursor: pointer;
-  transition: all var(--transition-medium);
-}
-
-.user-avatar:hover {
-  background: var(--gray-100);
-}
-
-.username {
-  font-weight: 500;
-  color: var(--gray-700);
-}
-
-.dropdown-icon {
-  color: var(--gray-400);
-  font-size: 0.875rem;
-}
-
 /* 搜索英雄区域 */
 .search-hero {
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
   padding: 4rem 2rem;
   position: relative;
   overflow: hidden;
-  transition: all var(--transition-medium);
+  transition: all 0.3s ease-in-out;
 }
 
 .search-hero.collapsed {
@@ -668,7 +467,7 @@ const handleUserCommand = async (command: string) => {
   color: white;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
-  transition: all var(--transition-medium);
+  transition: all 0.3s ease-in-out;
 }
 
 .search-button:hover {
@@ -702,7 +501,7 @@ const handleUserCommand = async (command: string) => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  transition: all var(--transition-medium);
+  transition: all 0.3s ease-in-out;
 }
 
 .advanced-toggle:hover {
@@ -759,7 +558,7 @@ const handleUserCommand = async (command: string) => {
   border: 2px dashed rgba(255, 255, 255, 0.3);
   border-radius: 1rem;
   backdrop-filter: blur(10px);
-  transition: all var(--transition-medium);
+  transition: all 0.3s ease-in-out;
 }
 
 .document-upload :deep(.el-upload-dragger:hover) {
@@ -814,7 +613,7 @@ const handleUserCommand = async (command: string) => {
   color: white;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
-  transition: all var(--transition-medium);
+  transition: all 0.3s ease-in-out;
   align-self: flex-end; /* 右对齐 */
   width: fit-content;   /* 宽度自适应 */
 }
@@ -847,7 +646,7 @@ const handleUserCommand = async (command: string) => {
   border-radius: 1rem 1rem 0 0;
   padding: 0.75rem 1.5rem;
   font-weight: 500;
-  transition: all var(--transition-medium);
+  transition: all 0.3s ease-in-out;
   display: flex;
   align-items: center;
   gap: 0.5rem;
