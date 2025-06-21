@@ -112,17 +112,8 @@
               </el-form-item>
             </el-form>
 
-            <div class="divider">
-              <span>或者</span>
-            </div>
 
             <div class="social-login">
-              <el-button class="social-button github" :icon="Platform">
-                GitHub
-              </el-button>
-              <el-button class="social-button google" :icon="ChatRound">
-                Google
-              </el-button>
             </div>
           </div>
 
@@ -215,8 +206,6 @@ import {
   User, 
   Lock, 
   Message, 
-  Platform, 
-  ChatRound,
   DocumentChecked,
   MagicStick,
   TrendCharts
@@ -315,7 +304,10 @@ const handleLogin = async () => {
   })
 
   if (result.success) {
-    ElMessage.success('登录成功')
+    ElMessage.success({
+      message: '登录成功',
+      duration: 1500
+    })
     router.push('/search')
   } else {
     ElMessage.error(result.message)

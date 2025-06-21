@@ -484,7 +484,10 @@ const uploadDocuments = async () => {
     }
     
     console.log('所有文档上传结果:', uploadResults)
-    ElMessage.success(`成功上传 ${uploadList.value.length} 个文档`)
+    ElMessage.success({
+    message: `成功上传 ${uploadList.value.length} 个文档`,
+    duration: 1500
+  })
     showUploadDialog.value = false
     uploadList.value = []
     
@@ -622,14 +625,16 @@ const getStatusType = (status: string) => {
 }
 
 const getStatusText = (status: string) => {
-  const statusMap: Record<string, string> = {
-    'processing': '处理中',
-    'completed': '已完成',
-    'failed': '失败'
+    const statusMap: Record<string, string> = {
+      'PENDING_PROCESS': '待处理',
+      'PROCESSING': '处理中',
+      'PENDING_CHUNK': '待分块',
+      'SYNCING': '同步中',
+      'COMPLETED': '已完成',
+      'FAILED': '失败'
+    }
+    return statusMap[status] || '未知'
   }
-  return statusMap[status] || '未知'
-}
-
 // 组件挂载时获取数据
 onMounted(() => {
   fetchProject()
