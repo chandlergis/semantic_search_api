@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "/app/uploads"
     MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
     
+    # OpenAI API配置
+    OPENAI_API_KEY: str = "your-openai-api-key-here"
+    
     class Config:
         env_file = ".env"
 

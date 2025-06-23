@@ -263,7 +263,10 @@ const handleProjectCommand = async (command: string, project: ProjectWithDocumen
     case 'search':
       router.push({
         path: '/search',
-        query: { project_id: project.id }
+        query: { 
+          project_id: project.id,
+          project_name: project.name // 添加项目名称用于显示
+        }
       });
       break;
     case 'delete':

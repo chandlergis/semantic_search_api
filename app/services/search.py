@@ -59,13 +59,31 @@ class SearchService:
             logger.error(f"构建搜索索引失败: {e}")
             raise
     
-    def search_by_text(self, db: Session, user_id: str, query: SearchQuery) -> SearchResponse:
-        """根据文本查询搜索文档"""
+    def search_by_text(self, db: Session, user_id: str, query: SearchQuery, project_id: Optional[str] = None) -> SearchResponse:
+        # 如果指定了项目，检查该项目下是否有文档
+        if project_id:
+            from app.models.documents import Document
+            doc_count = db.query(Document).filter(
+                Document.project_id == project_id,
+                Document.owner_id == user_id,
+                Document.status == 'COMPLETED'
+            ).count()
+            if doc_count == 0:
+                return SearchResponse(
+                    query=query.query,
+                    total_chunks=0,
+                    total_documents=0,
+                    chunks=[],
+                    documents=[],
+                    search_time_ms=0,
+                    message=f"项目 {project_id} 下没有可搜索的文档"
+                )
+        """根据文本查询搜索文档，支持按项目过滤"""
         start_time = time.time()
         
         try:
             # 更新搜索索引
-            self._ensure_index_updated(db, user_id, query.project_id)
+            self._ensure_index_updated(db, user_id, project_id)
             
             # 更新搜索引擎权重
             search_engine.bm25_weight = query.bm25_weight

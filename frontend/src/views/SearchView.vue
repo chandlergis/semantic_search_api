@@ -107,6 +107,23 @@
             <div v-if="showAdvanced" class="advanced-panel glass-effect">
               <div class="panel-title">高级搜索选项</div>
               <div class="advanced-grid">
+                <div class="control-item project-selector">
+                  <label>限定项目范围</label>
+                  <el-select
+                    v-model="searchOptions.project_id"
+                    placeholder="默认所有项目"
+                    clearable
+                    filterable
+                    class="full-width-select"
+                  >
+                    <el-option
+                      v-for="project in projects"
+                      :key="project.id"
+                      :label="project.name"
+                      :value="project.id"
+                    />
+                  </el-select>
+                </div>
                 <div class="control-item">
                   <label>结果数量</label>
                   <el-slider
@@ -218,7 +235,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { 
   Search, 
@@ -228,8 +246,8 @@ import {
   ArrowUp,
   UploadFilled
 } from '@element-plus/icons-vue';
-import type { SearchResponse } from '@/types/api';
-import { searchService } from '@/services/api';
+import type { SearchResponse, ProjectRead } from '@/types/api';
+import { searchService, projectService } from '@/services/api';
 import AppHeader from '@/components/AppHeader.vue';
 
 // 搜索相关状态
@@ -242,12 +260,16 @@ const showAdvanced = ref(false);
 const selectedFile = ref<File | null>(null);
 const uploadRef = ref();
 const isSearchCollapsed = ref(false);
+const projects = ref<ProjectRead[]>([]);
+const route = useRoute();
+
 
 // 搜索选项
 const searchOptions = reactive({
   top_k: 10,
   bm25_weight: 0.6,
-  tfidf_weight: 0.4
+  tfidf_weight: 0.4,
+  project_id: undefined as string | undefined
 });
 
 // 执行文本搜索
@@ -357,6 +379,38 @@ const copyContent = async (content: string) => {
     ElMessage.error('复制失败');
   }
 };
+
+// 获取项目列表
+const fetchProjects = async () => {
+  try {
+    const response = await projectService.getProjects({ page: 1, per_page: 100 });
+    projects.value = response.projects;
+  } catch (error) {
+    console.error("获取项目列表失败:", error);
+    ElMessage.error('获取项目列表失败');
+  }
+};
+
+onMounted(() => {
+  fetchProjects();
+  const { project_id, project_name } = route.query;
+  if (typeof project_id === 'string') {
+    searchOptions.project_id = project_id;
+    if (typeof project_name === 'string') {
+      ElMessage.info(`已限定在项目 "${project_name}" 中搜索`);
+    }
+  } else {
+    searchOptions.project_id = undefined;
+  }
+});
+
+watch(() => route.query.project_id, (newProjectId) => {
+  if (typeof newProjectId === 'string') {
+    searchOptions.project_id = newProjectId;
+  } else if (!newProjectId) {
+    searchOptions.project_id = undefined;
+  }
+});
 </script>
 
 <style scoped>
@@ -675,11 +729,21 @@ const copyContent = async (content: string) => {
   text-align: center;
 }
 
+
 .advanced-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem 2rem;
 }
+
+.control-item.project-selector {
+  grid-column: 1 / -1; /* 占据整行 */
+}
+
+.full-width-select {
+  width: 100%;
+}
+
 
 .control-item label {
   display: block;
