@@ -15,6 +15,7 @@
           :to="item.path"
           class="nav-item"
           :class="{ active: activeIndex === item.path }"
+          active-class="active"
         >
           <el-icon>
             <component :is="item.icon" />
@@ -66,6 +67,7 @@ import {
   ArrowDown,
   SwitchButton,
   Folder,
+  ChatLineRound,
 } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 
@@ -77,6 +79,7 @@ const navItems = [
   { path: '/search', label: '搜索', icon: Search },
   { path: '/projects', label: '项目', icon: Folder },
   { path: '/documents', label: '文档', icon: Document },
+  { path: '/chat', label: '聊天', icon: ChatLineRound },
 ];
 
 const activeIndex = computed(() => router.currentRoute.value.path);
@@ -91,7 +94,7 @@ const handleUserCommand = async (command: string) => {
       router.push('/profile');
       break;
     case 'settings':
-      ElMessage.info('设置功能开发中...');
+      router.push('/settings');
       break;
     case 'logout':
       try {

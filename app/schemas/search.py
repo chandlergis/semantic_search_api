@@ -45,6 +45,7 @@ class SearchResponse(BaseModel):
     chunks: List[ChunkSearchResult]
     documents: List[DocumentSearchResult]
     search_time_ms: float
+    message: Optional[str] = None
 
 # 相似文档匹配（保留原有功能）
 class MatchResult(BaseModel):

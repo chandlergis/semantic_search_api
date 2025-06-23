@@ -1,6 +1,7 @@
-from fastapi import APIRouter, UploadFile, Depends, HTTPException, status, Form
+from fastapi import APIRouter, UploadFile, Depends, HTTPException, status, Form, Query, Body
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
+from pydantic import BaseModel
 
 from app.schemas.search import SearchQuery, SearchByFile, SearchResponse
 from app.services.search import search_service
@@ -9,15 +10,25 @@ from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 
+class ModelInfo(BaseModel):
+    id: str
+    object: str = "model"
+    owned_by: str = "deepseek"
+
 @router.post("/text", response_model=SearchResponse)
 async def search_by_text(
-    query: SearchQuery,
+    query: SearchQuery = Body(...),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
     """文本搜索接口"""
     try:
-        return search_service.search_by_text(db, current_user.id, query)
+        return search_service.search_by_text(
+            db, 
+            current_user.id, 
+            query,
+            project_id=project_id
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -110,3 +121,11 @@ async def get_search_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取状态失败: {str(e)}"
         )
+
+@router.get("/models", response_model=List[ModelInfo])
+async def get_models():
+    """获取可用模型列表"""
+    return [
+        {"id": "deepseek-chat", "object": "model", "owned_by": "deepseek"},
+        {"id": "deepseek-reasoner", "object": "model", "owned_by": "deepseek"}
+    ]
