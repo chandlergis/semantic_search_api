@@ -67,7 +67,7 @@ import {
   ArrowDown,
   SwitchButton,
   Folder,
-  ChatLineRound,
+  ScaleToOriginal,
 } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 
@@ -79,7 +79,7 @@ const navItems = [
   { path: '/search', label: '搜索', icon: Search },
   { path: '/projects', label: '项目', icon: Folder },
   { path: '/documents', label: '文档', icon: Document },
-  { path: '/chat', label: '聊天', icon: ChatLineRound },
+  { path: '/compare', label: '文档比对', icon: ScaleToOriginal },
 ];
 
 const activeIndex = computed(() => router.currentRoute.value.path);

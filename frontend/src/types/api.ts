@@ -4,6 +4,7 @@
 export interface SearchQuery {
   query: string
   top_k?: number
+  top_k_chunks?: number // 新增
   bm25_weight?: number
   tfidf_weight?: number
   project_id?: string
@@ -11,6 +12,7 @@ export interface SearchQuery {
 
 export interface SearchByFile {
   top_k?: number
+  top_k_chunks?: number // 新增
   bm25_weight?: number
   tfidf_weight?: number
   project_id?: string
@@ -127,4 +129,83 @@ export interface ProjectList {
   total: number
   page: number
   per_page: number
+}
+
+// 文档比对相关
+export interface DocumentInfo {
+  filename: string
+  content: string
+  html_content: string
+  chunks_count: number
+}
+
+export interface MatchLink {
+  chunk_a_id: string
+  chunk_b_id: string
+  similarity: number
+  match_type: 'high' | 'medium' | 'low'
+  link_id: string
+}
+
+export interface ComparisonResult {
+  overall_similarity: number
+  total_matches: number
+  high_similarity_matches: number
+  medium_similarity_matches: number
+  match_links: MatchLink[]
+}
+
+export interface AlgorithmParams {
+  similarity_threshold_high: number
+  similarity_threshold_medium: number
+  chunk_size: number
+}
+
+export interface ComparisonMetadata {
+  comparison_time: string | null
+  algorithm_params: AlgorithmParams
+}
+
+export interface CompareResponse {
+  document_a: DocumentInfo
+  document_b: DocumentInfo
+  comparison: ComparisonResult
+  metadata: ComparisonMetadata
+}
+
+export interface CompareRequest {
+  text_a: string
+  text_b: string
+  filename_a?: string
+  filename_b?: string
+  similarity_threshold_high?: number
+  similarity_threshold_medium?: number
+  chunk_size?: number
+}
+
+export interface FileUploadResponse {
+  filename: string
+  file_id: string
+  content_preview: string
+  file_size: number
+  upload_time: string
+}
+
+export interface CompareFilesRequest {
+  file_a_id: string
+  file_b_id: string
+  similarity_threshold_high?: number
+  similarity_threshold_medium?: number
+  chunk_size?: number
+}
+
+export interface ErrorResponse {
+  error: string
+  detail?: string
+  code?: string
+}
+
+export interface SuccessResponse {
+  message: string
+  data?: any
 }

@@ -184,8 +184,12 @@ class SearchService:
             logger.error(f"文件搜索失败: {e}")
             raise
     
-    def _aggregate_results_by_document(self, chunks: List[ChunkSearchResult]) -> List[DocumentSearchResult]:
-        """按文档聚合chunk搜索结果"""
+    def _aggregate_results_by_document(self, chunks: List[ChunkSearchResult], top_k_chunks: int = 10) -> List[DocumentSearchResult]:
+        """按文档聚合chunk搜索结果
+        :param chunks: 搜索到的分块结果列表
+        :param top_k_chunks: 每个文档返回的最相关分块数量，默认为10
+        """
+ 
         doc_groups = defaultdict(list)
         
         # 按文档ID分组

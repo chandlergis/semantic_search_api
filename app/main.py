@@ -1,6 +1,6 @@
 import logging
 from fastapi import FastAPI
-from app.routers import users, documents, search, projects, chat
+from app.routers import users, documents, search, projects, chat, compare
 from app.db.base import Base, engine
 
 # 配置日志
@@ -18,6 +18,7 @@ app.include_router(documents.router)
 app.include_router(search.router)
 app.include_router(projects.router)
 app.include_router(chat.router)
+app.include_router(compare.router)
 
 @app.get("/health")
 def health_check():

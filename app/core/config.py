@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     DOCUMENT_PARSER_URL: str = "http://localhost:8490"
     UPLOAD_DIR: str = "/app/uploads"
     MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
+    MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50MB
     
     # OpenAI API配置
     OPENAI_API_KEY: str = "your-openai-api-key-here"

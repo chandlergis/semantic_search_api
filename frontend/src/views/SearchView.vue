@@ -2,7 +2,6 @@
   <div class="search-view">
     <AppHeader />
 
-    <!-- 优化的搜索区域 -->
     <div class="search-hero" :class="{ collapsed: isSearchCollapsed }">
       <div class="search-container">
         <div class="search-content animate-fadeInUp" v-show="!isSearchCollapsed">
@@ -13,7 +12,6 @@
             利用AI技术为您提供最相关的结果
           </p>
           
-          <!-- 搜索方式选择 -->
           <div class="search-mode-selector">
             <el-radio-group v-model="searchMode" size="large" class="mode-group">
               <el-radio-button label="text">文本搜索</el-radio-button>
@@ -21,7 +19,6 @@
             </el-radio-group>
           </div>
 
-          <!-- 文本搜索框 -->
           <div v-if="searchMode === 'text'" class="main-search-box">
             <div class="search-input-wrapper">
               <el-input
@@ -47,7 +44,6 @@
             </div>
           </div>
 
-          <!-- 文档匹配上传区 -->
           <div v-else class="document-match-box">
             <el-upload
               ref="uploadRef"
@@ -81,7 +77,6 @@
             </el-button>
           </div>
 
-          <!-- 快速选项 -->
           <div class="quick-options">
             <el-button-group class="option-group">
               <el-button @click="searchOptions.top_k = 5" size="small">
@@ -102,9 +97,8 @@
             </el-link>
           </div>
 
-          <!-- 高级搜索面板 -->
           <el-collapse-transition>
-            <div v-if="showAdvanced" class="advanced-panel glass-effect">
+            <div v-if="showAdvanced" class="advanced-panel">
               <div class="panel-title">高级搜索选项</div>
               <div class="advanced-grid">
                 <div class="control-item project-selector">
@@ -130,6 +124,17 @@
                     v-model="searchOptions.top_k"
                     :min="1"
                     :max="50"
+                    :step="1"
+                    show-input
+                    input-size="small"
+                  />
+                </div>
+                <div class="control-item">
+                  <label>每文档分块数</label>
+                  <el-slider
+                    v-model="searchOptions.top_k_chunks"
+                    :min="1"
+                    :max="20"
                     :step="1"
                     show-input
                     input-size="small"
@@ -162,7 +167,6 @@
           </el-collapse-transition>
         </div>
         
-        <!-- 收起/展开按钮 -->
         <div class="collapse-toggle" v-if="hasSearched">
           <el-button 
             @click="toggleSearchArea"
@@ -179,7 +183,6 @@
       </div>
     </div>
 
-    <!-- 搜索结果 -->
     <div class="results-container" v-if="searchResults">
       <div class="results-header">
         <h3>{{ searchMode === 'text' ? '搜索结果' : '文档匹配结果' }}</h3>
@@ -193,41 +196,45 @@
         </div>
       </div>
 
-      <!-- 结果列表 -->
       <div class="results-list">
         <el-card 
-          v-for="chunk in searchResults.chunks" 
-          :key="chunk.chunk_id"
+          v-for="doc in searchResults.documents" 
+          :key="doc.document_id"
           class="result-card"
           shadow="hover"
         >
           <template #header>
             <div class="card-header">
-              <h4>{{ chunk.document_title }}</h4>
+              <h4>{{ doc.document_title }}</h4>
               <div class="scores">
-                <el-tag size="small">总分: {{ chunk.final_score.toFixed(3) }}</el-tag>
-                <el-tag size="small" type="warning">BM25: {{ chunk.bm25_score.toFixed(3) }}</el-tag>
-                <el-tag size="small" type="success">TF-IDF: {{ chunk.tfidf_score.toFixed(3) }}</el-tag>
+                <el-tag size="small" type="success">最高相似度: {{ (doc.max_score * 100).toFixed(1) }}%</el-tag>
+                <el-tag size="small" type="info">平均相似度: {{ (doc.avg_score * 100).toFixed(1) }}%</el-tag>
               </div>
             </div>
           </template>
           
-          <div class="result-content">
-            <p v-html="highlightText(chunk.content, searchMode === 'text' ? searchQuery : '')"></p>
-          </div>
-          
-          <div class="result-footer">
-            <span class="chunk-index">片段 #{{ chunk.chunk_index + 1 }}</span>
-            <el-button size="small" type="text" @click="copyContent(chunk.content)">
-              <el-icon><CopyDocument /></el-icon>
-              复制
-            </el-button>
+          <div class="chunk-scores">
+            <div 
+              v-for="chunk in doc.top_chunks" 
+              :key="chunk.chunk_id"
+              class="chunk-item"
+            >
+              <p class="chunk-content" v-html="highlightText(chunk.content, searchQuery)"></p>
+              <div class="chunk-footer">
+                <el-tag size="small">分块匹配度: {{ (chunk.final_score * 100).toFixed(1) }}%</el-tag>
+                <el-tag size="small" type="warning">BM25: {{ chunk.bm25_score.toFixed(3) }}</el-tag>
+                <el-tag size="small" type="danger">TF-IDF: {{ chunk.tfidf_score.toFixed(3) }}</el-tag>
+                <el-button size="small" type="text" @click="copyContent(chunk.content)">
+                  <el-icon><CopyDocument /></el-icon>
+                  复制
+                </el-button>
+              </div>
+            </div>
           </div>
         </el-card>
       </div>
     </div>
 
-    <!-- 空状态 -->
     <div class="empty-state" v-else-if="hasSearched && !loading">
       <el-empty description="没有找到相关结果" />
     </div>
@@ -267,6 +274,7 @@ const route = useRoute();
 // 搜索选项
 const searchOptions = reactive({
   top_k: 10,
+  top_k_chunks: 10, // 新增：控制每个文档显示的分块数量
   bm25_weight: 0.6,
   tfidf_weight: 0.4,
   project_id: undefined as string | undefined
@@ -285,11 +293,12 @@ const handleSearch = async () => {
   try {
     const response = await searchService.textSearch({
       query: searchQuery.value,
-      ...searchOptions
+      ...searchOptions,
+      top_k_chunks: searchOptions.top_k_chunks // 确保传递分块数量参数
     });
     searchResults.value = response;
     
-    if (response.chunks.length === 0) {
+    if (response.documents.length === 0) {
       ElMessage.info('没有找到相关结果');
     } else {
       // 有结果时自动收起搜索区域
@@ -329,10 +338,13 @@ const handleDocumentMatch = async () => {
   hasSearched.value = true;
 
   try {
-    const response = await searchService.fileSearch(selectedFile.value, searchOptions);
+    const response = await searchService.fileSearch(selectedFile.value, {
+      ...searchOptions,
+      top_k_chunks: searchOptions.top_k_chunks // 确保传递分块数量参数
+    });
     searchResults.value = response;
     
-    if (response.chunks.length === 0) {
+    if (response.documents.length === 0) {
       ElMessage.info('没有找到匹配的文档内容');
     } else {
       ElMessage.success(`找到 ${response.total_documents} 个相关文档`);
@@ -357,7 +369,7 @@ const toggleSearchArea = () => {
 
 // 高亮搜索关键词
 const highlightText = (text: string, query: string) => {
-  if (!query.trim()) return text;
+  if (!query || !query.trim()) return text;
   
   const keywords = query.trim().split(/\s+/);
   let highlighted = text;
@@ -414,6 +426,7 @@ watch(() => route.query.project_id, (newProjectId) => {
 </script>
 
 <style scoped>
+/* General View Layout */
 .search-view {
   height: 100vh;
   display: flex;
@@ -421,13 +434,13 @@ watch(() => route.query.project_id, (newProjectId) => {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
-/* 搜索英雄区域 */
+/* Hero Search Area */
 .search-hero {
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
   padding: 4rem 2rem;
   position: relative;
   overflow: hidden;
-  transition: all 0.3s ease-in-out;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .search-hero.collapsed {
@@ -450,15 +463,14 @@ watch(() => route.query.project_id, (newProjectId) => {
   margin: 0 auto;
   position: relative;
   z-index: 1;
-  min-height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .search-content {
   text-align: center;
   color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .hero-title {
@@ -479,15 +491,16 @@ watch(() => route.query.project_id, (newProjectId) => {
   font-weight: 400;
 }
 
+/* Search Input & Buttons */
 .main-search-box {
+  width: 100%;
+  max-width: 600px;
   margin-bottom: 2rem;
 }
 
 .search-input-wrapper {
   display: flex;
   gap: 0.75rem;
-  max-width: 600px;
-  margin: 0 auto;
 }
 
 .main-search-input {
@@ -506,7 +519,7 @@ watch(() => route.query.project_id, (newProjectId) => {
 }
 
 .search-icon {
-  color: var(--primary-color);
+  color: #6366f1; /* Using a theme color */
   font-size: 1.25rem;
 }
 
@@ -530,6 +543,7 @@ watch(() => route.query.project_id, (newProjectId) => {
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
 }
 
+/* Quick Options & Advanced Toggle */
 .quick-options {
   display: flex;
   justify-content: center;
@@ -562,47 +576,51 @@ watch(() => route.query.project_id, (newProjectId) => {
   color: white;
 }
 
-/* 搜索模式选择器 */
+/* Search Mode Selector */
 .search-mode-selector {
   margin-bottom: 2rem;
   display: flex;
   justify-content: center;
 }
 
-.mode-group .el-radio-button__inner {
+.mode-group :deep(.el-radio-button__inner) {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: white;
   backdrop-filter: blur(10px);
   padding: 12px 24px;
   font-weight: 500;
+  border-radius: 0.75rem;
 }
 
-.mode-group .el-radio-button__inner:hover {
+.mode-group :deep(.el-radio-button:first-child .el-radio-button__inner) {
+    border-top-left-radius: 0.75rem;
+    border-bottom-left-radius: 0.75rem;
+}
+
+.mode-group :deep(.el-radio-button:last-child .el-radio-button__inner) {
+    border-top-right-radius: 0.75rem;
+    border-bottom-right-radius: 0.75rem;
+}
+
+.mode-group :deep(.el-radio-button__inner:hover) {
   background: rgba(255, 255, 255, 0.2);
 }
 
-.mode-group .el-radio-button.is-active .el-radio-button__inner {
+.mode-group :deep(.el-radio-button.is-active .el-radio-button__inner) {
   background: rgba(255, 255, 255, 0.9);
-  color: var(--primary-color);
+  color: #6366f1; /* Using a theme color */
   border-color: rgba(255, 255, 255, 0.9);
 }
 
-/* 文档匹配上传区 */
+/* Document Match Area */
 .document-match-box {
   max-width: 600px;
-  margin: 0 auto;
+  width: 100%;
+  margin: 0 auto 2rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-}
-
-.document-upload {
-  width: 100%;
-}
-
-.document-upload :deep(.el-upload) {
-  width: 100%;
 }
 
 .document-upload :deep(.el-upload-dragger) {
@@ -613,6 +631,10 @@ watch(() => route.query.project_id, (newProjectId) => {
   border-radius: 1rem;
   backdrop-filter: blur(10px);
   transition: all 0.3s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .document-upload :deep(.el-upload-dragger:hover) {
@@ -620,10 +642,10 @@ watch(() => route.query.project_id, (newProjectId) => {
   border-color: rgba(255, 255, 255, 0.5);
 }
 
-.document-upload :deep(.el-upload-dragger .el-icon--upload) {
+.document-upload :deep(.el-icon--upload) {
   font-size: 3rem;
   color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 1rem;
+  margin: 0 0 1rem 0;
 }
 
 .document-upload :deep(.el-upload__text) {
@@ -644,16 +666,12 @@ watch(() => route.query.project_id, (newProjectId) => {
   margin-top: 0.5rem;
 }
 
-.document-upload :deep(.el-upload-list) {
-  margin-top: 1rem;
-}
-
 .document-upload :deep(.el-upload-list__item) {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.2);
   border-radius: 0.5rem;
   color: white;
   backdrop-filter: blur(10px);
+  margin-top: 1rem;
 }
 
 .match-button {
@@ -668,8 +686,6 @@ watch(() => route.query.project_id, (newProjectId) => {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
   transition: all 0.3s ease-in-out;
-  align-self: flex-end; /* 右对齐 */
-  width: fit-content;   /* 宽度自适应 */
 }
 
 .match-button:hover:not(:disabled) {
@@ -679,84 +695,134 @@ watch(() => route.query.project_id, (newProjectId) => {
 }
 
 .match-button:disabled {
-  opacity: 0.5;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
-/* 收起/展开按钮区域 */
-.collapse-toggle {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-}
 
-.toggle-button {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: white;
-  backdrop-filter: blur(10px);
-  border-radius: 1rem 1rem 0 0;
-  padding: 0.75rem 1.5rem;
-  font-weight: 500;
-  transition: all 0.3s ease-in-out;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.toggle-button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-}
-
+/* Advanced Panel - REDESIGNED */
 .advanced-panel {
-  max-width: 600px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: 700px;
+  margin: 1rem auto 0;
   padding: 2rem;
-  border-radius: 1rem;
+  border-radius: 1.5rem;
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
   border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
 }
 
 .panel-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
   color: white;
   text-align: center;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
-
 
 .advanced-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem 2rem;
 }
 
+.control-item {
+  display: flex;
+  flex-direction: column;
+}
+
 .control-item.project-selector {
-  grid-column: 1 / -1; /* 占据整行 */
+  grid-column: 1 / -1;
+}
+
+.control-item label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.9rem;
+  text-align: left;
 }
 
 .full-width-select {
   width: 100%;
 }
 
+/* Deep Styling for Element Plus components in Advanced Panel */
+.advanced-panel :deep(.el-select .el-input__wrapper) {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: none !important;
+  border-radius: 0.5rem;
+}
+.advanced-panel :deep(.el-select .el-input__inner) { color: white !important; }
+.advanced-panel :deep(.el-slider__runway) { background-color: rgba(0, 0, 0, 0.2); height: 6px; border-radius: 3px; }
+.advanced-panel :deep(.el-slider__bar) { background-color: white; height: 6px; border-radius: 3px;}
+.advanced-panel :deep(.el-slider__button) { border: 2px solid white; background-color: #8b5cf6;}
+.advanced-panel :deep(.el-input-number) { width: 110px; }
+.advanced-panel :deep(.el-input-number .el-input__wrapper) {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: none !important;
+  padding: 0;
+}
+.advanced-panel :deep(.el-input-number .el-input__inner) { color: white !important; }
+.advanced-panel :deep(.el-input-number__decrease),
+.advanced-panel :deep(.el-input-number__increase) {
+  background: transparent !important;
+  color: white !important;
+  font-weight: bold;
+  border: none;
+}
+.advanced-panel :deep(.el-input-number__decrease) { border-right: 1px solid rgba(255, 255, 255, 0.3); }
+.advanced-panel :deep(.el-input-number__increase) { border-left: 1px solid rgba(255, 255, 255, 0.3); }
 
-.control-item label {
+/* Collapse/Expand Toggle */
+.collapse-toggle {
+  display: none;
+}
+.search-hero.collapsed .search-container {
+    min-height: auto;
+    display: block;
+}
+.search-hero.collapsed .collapse-toggle {
   display: block;
-  margin-bottom: 0.75rem;
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+.toggle-button {
+  background: #f1f5f9;
+  border: none;
+  color: #334155;
+  border-radius: 1rem;
+  padding: 0.5rem 1.5rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.875rem;
+  transition: all 0.3s ease-in-out;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+}
+.toggle-button:hover {
+  background: white;
+  color: #6366f1;
+  transform: translateY(-2px);
 }
 
+/* Results Area */
 .results-container {
   flex: 1;
-  padding: 20px;
+  padding: 40px 20px 20px;
   overflow-y: auto;
+  background-color: #f1f5f9;
 }
 
 .results-header {
@@ -764,6 +830,7 @@ watch(() => route.query.project_id, (newProjectId) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  padding: 0 10px;
 }
 
 .results-stats .el-tag {
@@ -771,11 +838,14 @@ watch(() => route.query.project_id, (newProjectId) => {
 }
 
 .results-list {
-  space-y: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .result-card {
-  margin-bottom: 16px;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
 }
 
 .card-header {
@@ -793,29 +863,44 @@ watch(() => route.query.project_id, (newProjectId) => {
   margin-left: 8px;
 }
 
-.result-content {
-  margin: 16px 0;
+.chunk-item {
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.chunk-item:last-child {
+  margin-bottom: 0;
+}
+
+.chunk-content {
+  margin-bottom: 8px;
   line-height: 1.6;
+  color: #475569;
+}
+.chunk-content :deep(mark) {
+    background-color: #fde047; /* yellow-300 */
+    color: #422006; /* yellow-950 */
+    border-radius: 2px;
+    padding: 1px 2px;
 }
 
-.result-content :deep(mark) {
-  background-color: #fff2cc;
-  padding: 2px 4px;
-  border-radius: 2px;
-}
-
-.result-footer {
+.chunk-footer {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  color: #909399;
-  font-size: 14px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
+/* Empty State */
 .empty-state {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: #f1f5f9;
+  padding-bottom: 20vh;
 }
 </style>
+

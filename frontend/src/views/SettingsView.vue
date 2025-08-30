@@ -2,7 +2,7 @@
   <div class="settings-view" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
     <h2>设置</h2>
     
-    <el-form label-position="top" class="settings-form">
+    <el-form label-position="top" class="settings-form" style="display: flex; justify-content: space-between;">
       <el-form-item label="LLM API URL">
         <el-input 
           v-model="apiUrl" 
@@ -26,7 +26,7 @@
         />
       </el-form-item>
       
-      <el-form-item>
+      <el-form-item style="margin-left: auto;">
         <el-button 
           type="primary" 
           @click="saveSettings"

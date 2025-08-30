@@ -27,7 +27,7 @@ async def search_by_text(
             db, 
             current_user.id, 
             query,
-            project_id=project_id
+            project_id=query.project_id
         )
     except Exception as e:
         raise HTTPException(

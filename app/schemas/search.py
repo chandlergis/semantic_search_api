@@ -6,12 +6,14 @@ from datetime import datetime
 class SearchQuery(BaseModel):
     query: str
     top_k: Optional[int] = 10
+    top_k_chunks: Optional[int] = 10
     bm25_weight: Optional[float] = 0.6
     tfidf_weight: Optional[float] = 0.4
     project_id: Optional[str] = None  # 限制在特定项目内搜索
 
 class SearchByFile(BaseModel):
     top_k: Optional[int] = 10
+    top_k_chunks: Optional[int] = 10
     bm25_weight: Optional[float] = 0.6
     tfidf_weight: Optional[float] = 0.4
     project_id: Optional[str] = None

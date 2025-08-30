@@ -10,7 +10,12 @@ import type {
   ProjectCreate,
   ProjectRead,
   ProjectList,
-  ProjectUpdate
+  ProjectUpdate,
+  CompareRequest,
+  CompareResponse,
+  CompareFilesRequest,
+  FileUploadResponse,
+  SuccessResponse
 } from '@/types/api'
 
 // API 基础配置
@@ -239,9 +244,50 @@ export const userService = {
   }
 }
 
+// 文档比对服务
+export const compareService = {
+  // 比较文本文档
+  async compareTexts(data: CompareRequest): Promise<CompareResponse> {
+    return apiClient.post('/compare/text', data)
+  },
+
+  // 上传文件用于比较
+  async uploadFile(file: File): Promise<FileUploadResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    return apiClient.post('/compare/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+  },
+
+  // 比较已上传的文件
+  async compareFiles(data: CompareFilesRequest): Promise<CompareResponse> {
+    return apiClient.post('/compare/files', data)
+  },
+
+  // 获取已上传文件信息
+  async getFileInfo(fileId: string): Promise<FileUploadResponse> {
+    return apiClient.get(`/compare/files/${fileId}`)
+  },
+
+  // 删除已上传的文件
+  async deleteFile(fileId: string): Promise<SuccessResponse> {
+    return apiClient.delete(`/compare/files/${fileId}`)
+  },
+
+  // 列出所有已上传的文件
+  async listFiles(): Promise<Record<string, FileUploadResponse>> {
+    return apiClient.get('/compare/files')
+  }
+}
+
 export default {
   searchService,
   documentService,
   projectService,
-  userService
+  userService,
+  compareService
 }
