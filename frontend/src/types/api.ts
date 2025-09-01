@@ -142,6 +142,8 @@ export interface DocumentInfo {
 export interface MatchLink {
   chunk_a_id: string
   chunk_b_id: string
+  chunk_a: string
+  chunk_b: string
   similarity: number
   match_type: 'high' | 'medium' | 'low'
   link_id: string
@@ -164,6 +166,10 @@ export interface AlgorithmParams {
 export interface ComparisonMetadata {
   comparison_time: string | null
   algorithm_params: AlgorithmParams
+  highlighted_files?: {
+    file_a?: string
+    file_b?: string
+  }
 }
 
 export interface CompareResponse {

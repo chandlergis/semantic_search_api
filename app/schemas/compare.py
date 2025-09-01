@@ -35,6 +35,7 @@ class ComparisonMetadata(BaseModel):
     """比较元数据模型"""
     comparison_time: Optional[datetime] = Field(None, description="比较时间")
     algorithm_params: AlgorithmParams = Field(..., description="算法参数")
+    highlighted_files: Optional[Dict[str, str]] = Field(default=None, description="高亮文件信息")
 
 class CompareResponse(BaseModel):
     """文档比较响应模型"""

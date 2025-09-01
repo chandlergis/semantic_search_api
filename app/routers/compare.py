@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from app.schemas.compare import (
     CompareRequest, CompareResponse, CompareFilesRequest,
@@ -14,6 +14,8 @@ from app.schemas.compare import (
 )
 from app.utils.document_compare import DocumentComparator
 from app.utils.document_parser import document_parser
+from app.utils.pdf_highlighter import pdf_highlighter
+from app.utils.file_converter import file_converter
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,97 @@ router = APIRouter(prefix="/api/compare", tags=["document-compare"])
 
 # 存储上传文件的临时缓存 (生产环境应该使用Redis或数据库)
 uploaded_files_cache: Dict[str, Dict[str, Any]] = {}
+
+async def _create_highlighted_pdf(
+    file_info: Dict[str, Any],
+    match_links: list,
+    similarity_threshold_high: float,
+    similarity_threshold_medium: float
+) -> str:
+    """
+    创建高亮PDF文件（支持PDF和DOCX）
+    
+    Args:
+        file_info: 文件信息
+        match_links: 匹配链接数据
+        similarity_threshold_high: 高相似度阈值
+        similarity_threshold_medium: 中相似度阈值
+        
+    Returns:
+        高亮PDF文件路径
+    """
+    try:
+        filename = file_info['filename'].lower()
+        
+        # 处理DOCX文件：先转换为PDF
+        if filename.endswith('.docx') or filename.endswith('.doc'):
+            # 创建临时DOCX文件
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as temp_docx_file:
+                temp_docx_file.write(file_info['raw_content'])
+                temp_docx_path = temp_docx_file.name
+            
+            # 转换为PDF
+            converted_pdf_path = await file_converter.convert_docx_to_pdf(temp_docx_path)
+            
+            # 清理临时DOCX文件
+            try:
+                os.unlink(temp_docx_path)
+            except:
+                pass
+                
+            temp_pdf_path = converted_pdf_path
+            
+        else:
+            # 对于PDF文件，直接使用原始内容
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                temp_file.write(file_info['raw_content'])
+                temp_pdf_path = temp_file.name
+        
+        # 准备高亮数据
+        highlights = []
+        for match in match_links:
+            similarity = match.get('similarity', 0.0)
+            if similarity >= similarity_threshold_high:
+                match_type = 'high'
+            elif similarity >= similarity_threshold_medium:
+                match_type = 'medium'
+            else:
+                match_type = 'low'
+            
+            # 获取待查重文档的文本
+            text = match.get('chunk_b', '')
+            if text and text.strip():
+                # 需要从pdf_highlighter模块导入HighlightMatch类
+                from app.utils.pdf_highlighter import HighlightMatch
+                highlights.append(HighlightMatch(
+                    text=text.strip(),
+                    similarity=similarity,
+                    match_type=match_type
+                ))
+        
+        # 使用注解高亮方法（保留原始PDF格式）
+        highlighted_pdf_path = pdf_highlighter.highlight_pdf_text(
+            pdf_path=temp_pdf_path,
+            highlights=highlights
+        )
+        
+        # 清理原始临时文件
+        try:
+            os.remove(temp_pdf_path)
+        except:
+            pass
+        
+        return highlighted_pdf_path
+        
+    except Exception as e:
+        logger.error(f"创建高亮PDF失败: {str(e)}")
+        # 清理临时文件
+        try:
+            if 'temp_pdf_path' in locals():
+                os.remove(temp_pdf_path)
+        except:
+            pass
+        raise
 
 @router.post("/text", response_model=CompareResponse)
 async def compare_text_documents(request: CompareRequest):
@@ -101,6 +194,7 @@ async def upload_file_for_comparison(file: UploadFile = File(...)):
         uploaded_files_cache[file_id] = {
             'filename': file.filename,
             'content': text_content,
+            'raw_content': file_content,  # 存储原始文件内容
             'file_size': file_size,
             'upload_time': datetime.now(),
             'file_hash': hashlib.md5(file_content).hexdigest()
@@ -121,6 +215,75 @@ async def upload_file_for_comparison(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"文件上传失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"文件上传失败: {str(e)}")
+
+@router.get("/download/{file_id}")
+async def download_file(file_id: str):
+    """
+    下载已上传的文件
+    """
+    if file_id not in uploaded_files_cache:
+        raise HTTPException(status_code=404, detail=f"文件未找到: {file_id}")
+
+    file_info = uploaded_files_cache[file_id]
+    file_content = file_info.get('raw_content')
+    filename = file_info.get('filename')
+
+    if not file_content or not filename:
+        raise HTTPException(status_code=404, detail="文件内容不可用")
+
+    media_type = "application/octet-stream"
+    if filename.endswith(".pdf"):
+        media_type = "application/pdf"
+    elif filename.endswith(".docx"):
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif filename.endswith(".doc"):
+        media_type = "application/msword"
+    elif filename.endswith(".txt"):
+        media_type = "text/plain"
+
+    # 正确处理Unicode文件名
+    from urllib.parse import quote
+    filename_encoded = quote(filename)
+    headers = {
+        "Content-Disposition": f"inline; filename*=utf-8''{filename_encoded}"
+    }
+    return Response(content=file_content, media_type=media_type, headers=headers)
+
+@router.get("/download/{file_id}/highlighted")
+async def download_highlighted_file(file_id: str):
+    """
+    下载高亮版本的PDF文件
+    """
+    highlighted_file_id = f"{file_id}_highlighted"
+    
+    logger.info(f"请求高亮文件: {file_id}, 缓存键: {highlighted_file_id}")
+    logger.info(f"缓存中的文件键: {list(uploaded_files_cache.keys())}")
+    
+    if highlighted_file_id not in uploaded_files_cache:
+        logger.warning(f"高亮文件未找到: {highlighted_file_id}")
+        raise HTTPException(status_code=404, detail=f"高亮文件未找到: {file_id}")
+
+    file_info = uploaded_files_cache[highlighted_file_id]
+    file_content = file_info.get('raw_content')
+    filename = file_info.get('filename')
+
+    if not file_content or not filename:
+        logger.warning(f"高亮文件内容不可用: {highlighted_file_id}")
+        raise HTTPException(status_code=404, detail="高亮文件内容不可用")
+
+    logger.info(f"返回高亮文件: {filename}, 大小: {len(file_content)} bytes")
+    
+    # 高亮PDF始终使用PDF媒体类型
+    media_type = "application/pdf"
+
+    # 正确处理Unicode文件名
+    from urllib.parse import quote
+    filename_encoded = quote(filename)
+    headers = {
+        "Content-Disposition": f"inline; filename*=utf-8''{filename_encoded}"
+    }
+    return Response(content=file_content, media_type=media_type, headers=headers)
+
 
 @router.post("/files", response_model=CompareResponse) 
 async def compare_uploaded_files(request: CompareFilesRequest):
@@ -156,8 +319,72 @@ async def compare_uploaded_files(request: CompareFilesRequest):
             filename_b=file_b_info['filename']
         )
         
-        # 添加比较时间
+        # 生成高亮版本（支持PDF和DOCX文件）
+        highlighted_file_ids = {}
+        
+        # 检查文件B是否为PDF或DOCX，如果是则生成高亮版本
+        filename_b = file_b_info['filename'].lower()
+        if filename_b.endswith('.pdf') or filename_b.endswith('.docx') or filename_b.endswith('.doc'):
+            try:
+                logger.info(f"为文件B生成高亮PDF: {file_b_info['filename']}")
+                highlighted_pdf_path = await _create_highlighted_pdf(
+                    file_b_info, 
+                    result['comparison']['match_links'],
+                    request.similarity_threshold_high,
+                    request.similarity_threshold_medium
+                )
+                
+                if highlighted_pdf_path:
+                    # 存储高亮PDF到缓存
+                    highlighted_file_id = f"{request.file_b_id}_highlighted"
+                    
+                    # 读取高亮PDF内容
+                    with open(highlighted_pdf_path, 'rb') as f:
+                        highlighted_content = f.read()
+                    
+                    uploaded_files_cache[highlighted_file_id] = {
+                        'filename': f"highlighted_{file_b_info['filename']}",
+                        'content': file_b_info['content'],  # 文本内容保持不变
+                        'raw_content': highlighted_content,  # 高亮的PDF内容
+                        'file_size': len(highlighted_content),
+                        'upload_time': datetime.now(),
+                        'file_hash': hashlib.md5(highlighted_content).hexdigest(),
+                        'is_highlighted': True,
+                        'original_file_id': request.file_b_id
+                    }
+                    
+                    highlighted_file_ids['file_b'] = highlighted_file_id
+                    logger.info(f"✓ 高亮PDF已生成并缓存: {highlighted_file_id}")
+                    logger.info(f"✓ 高亮文件大小: {len(highlighted_content)} bytes")
+                    logger.info(f"✓ highlighted_file_ids 当前值: {highlighted_file_ids}")
+                    logger.info(f"✓ 缓存键列表: {list(uploaded_files_cache.keys())}")
+                else:
+                    logger.error("✗ highlighted_pdf_path为None，高亮PDF生成失败")
+                    
+                    # 清理临时文件（注释掉以便调试）
+                    # try:
+                    #     os.remove(highlighted_pdf_path)
+                    # except:
+                    #     pass
+                        
+            except Exception as e:
+                logger.warning(f"生成高亮PDF失败: {str(e)}")
+        
+        # 添加比较时间和高亮文件信息
         result['metadata']['comparison_time'] = datetime.now()
+        
+        # 调试日志：检查高亮文件信息
+        logger.info(f"highlighted_file_ids: {highlighted_file_ids}")
+        logger.info(f"result['metadata'] 当前内容: {result['metadata']}")
+        
+        if highlighted_file_ids:
+            result['metadata']['highlighted_files'] = highlighted_file_ids
+            logger.info(f"已添加highlighted_files到结果: {result['metadata']['highlighted_files']}")
+        else:
+            logger.warning("highlighted_file_ids为空，未添加高亮文件信息")
+        
+        # 调试日志：检查最终的metadata内容
+        logger.info(f"最终metadata内容: {result['metadata']}")
         
         logger.info(f"文件比较完成，整体相似度: {result['comparison']['overall_similarity']:.3f}")
         

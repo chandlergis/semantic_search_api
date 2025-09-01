@@ -1,0 +1,45 @@
+/* PDF单页容器样式 */
+.pdf-page .vue-pdf-embed {
+    width: 100%;
+    display: block;
+    margin-bottom: 20px;
+}
+
+.pdf-page .vue-pdf-embed canvas {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: auto !important;
+    width: auto !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 4px;
+}
+
+/* PDF页面容器 - 移除独立滚动 */
+.pdf-page .vue-pdf-embed .vue-pdf-embed__page {
+    display: block;
+    max-width: 100%;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+}
+
+/* 最后一页不需要底部边距 */
+.pdf-page:last-child {
+    margin-bottom: 10px;
+}
+
+/* 响应式PDF缩放 */
+@media (max-width: 768px) {
+    .pdf-page .vue-pdf-embed canvas {
+        max-width: 95%;
+    }
+}
+
+/* 确保文本层和注解层也不产生滚动条 */
+.pdf-page .vue-pdf-embed .textLayer,
+.pdf-page .vue-pdf-embed .annotationLayer {
+    overflow: visible !important;
+}

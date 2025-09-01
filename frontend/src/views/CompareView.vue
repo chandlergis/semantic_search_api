@@ -12,38 +12,10 @@
       <div class="input-panel">
         <div class="input-header">
           <span class="input-title">查重文档输入</span>
-          <el-radio-group v-model="inputMode" size="small">
-            <el-radio-button label="text">文本输入</el-radio-button>
-            <el-radio-button label="file">文件上传</el-radio-button>
-          </el-radio-group>
-        </div>
-
-        <!-- 文本输入模式 -->
-        <div v-if="inputMode === 'text'" class="text-input-mode">
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <div class="input-section">
-                <div class="section-header">
-                  <h3>原文内容</h3>
-                  <el-input v-model="textData.filename_a" placeholder="原文标题" size="small" style="width: 200px;" />
-                </div>
-                <el-input v-model="textData.text_a" type="textarea" placeholder="请输入或粘贴原文内容..." :rows="15" :maxlength="50000" show-word-limit resize="none" />
-              </div>
-            </el-col>
-            <el-col :span="12">
-              <div class="input-section">
-                <div class="section-header">
-                  <h3>待查重内容</h3>
-                  <el-input v-model="textData.filename_b" placeholder="待查重标题" size="small" style="width: 200px;" />
-                </div>
-                <el-input v-model="textData.text_b" type="textarea" placeholder="请输入或粘贴待查重内容..." :rows="15" :maxlength="50000" show-word-limit resize="none" />
-              </div>
-            </el-col>
-          </el-row>
         </div>
 
         <!-- 文件上传模式 -->
-        <div v-if="inputMode === 'file'" class="file-input-mode">
+        <div class="file-input-mode">
           <div class="upload-container">
             <div class="upload-column">
               <div class="upload-section">
@@ -94,11 +66,7 @@
 
       <!-- 开始比对按钮 -->
       <div class="compare-action">
-        <el-button v-if="inputMode === 'text'" type="primary" size="large" :loading="comparing" :disabled="!textData.text_a || !textData.text_b" @click="compareTexts">
-          <el-icon><search /></el-icon>
-          开始查重比对
-        </el-button>
-        <el-button v-else type="primary" size="large" :loading="comparing" :disabled="!fileData.file_a || !fileData.file_b" @click="compareFiles">
+        <el-button type="primary" size="large" :loading="comparing" :disabled="!fileData.file_a || !fileData.file_b" @click="compareFiles">
           <el-icon><search /></el-icon>
           开始查重比对
         </el-button>
@@ -112,7 +80,20 @@
         <div class="view-header">
           <span class="view-title">文档对比视图</span>
           <div class="view-controls">
-            <el-switch v-model="syncScroll" active-text="同步滚动" />
+            <el-switch
+              v-model="showHighlighted"
+              active-text="显示高亮"
+              inactive-text="原始文档"
+              size="small"
+              style="margin-right: 16px;"
+              :disabled="!hasHighlightedVersion"
+            />
+            <el-switch
+              v-model="syncScrolling"
+              active-text="同步滚动"
+              inactive-text="独立滚动"
+              size="small"
+            />
           </div>
         </div>
         
@@ -122,10 +103,31 @@
               <div class="document-panel">
                 <div class="document-header">
                   <h4>{{ result.document_a.filename }}</h4>
-                  <span class="chunk-count">{{ result.document_a.chunks_count }} 段</span>
                 </div>
-                <div class="document-preview">
-                  <div ref="documentA" class="document-content" v-html="result.document_a.html_content" @scroll="onScrollA" />
+                <div class="document-preview" ref="documentPreviewA">
+                  <!-- 先加载第一页获取PDF信息 -->
+                  <VuePdfEmbed 
+                    v-if="result && fileData.file_a_id && !pdfDocA"
+                    :source="`/scdlsearch/api/compare/download/${fileData.file_a_id}?token=${authToken}`"
+                    :page="1"
+                    style="display: none;"
+                    @loaded="(pdf) => handlePdfLoaded(pdf, 'a')"
+                  />
+                  <!-- 显示所有页面 -->
+                  <div v-if="pdfDocA && !pdfLoading" class="pdf-viewer">
+                    <VuePdfEmbed 
+                      v-for="pageNum in pdfDocA.numPages"
+                      :key="`pdf-a-page-${pageNum}`"
+                      :source="`/scdlsearch/api/compare/download/${fileData.file_a_id}?token=${authToken}`"
+                      :page="pageNum"
+                      class="pdf-page"
+                      @rendered="() => handlePdfPageRendered('a', pageNum)"
+                    />
+                  </div>
+                  <div v-if="pdfLoading" class="pdf-loading">
+                    <el-icon class="loading-icon"><Loading /></el-icon>
+                    <span>加载中...</span>
+                  </div>
                 </div>
               </div>
             </el-col>
@@ -133,10 +135,35 @@
               <div class="document-panel">
                 <div class="document-header">
                   <h4>{{ result.document_b.filename }}</h4>
-                  <span class="chunk-count">{{ result.document_b.chunks_count }} 段</span>
+                  <div v-if="hasHighlightedVersion" class="header-controls">
+                    <el-tag v-if="showHighlighted" type="warning" size="small">高亮版本</el-tag>
+                    <el-tag v-else type="info" size="small">原始版本</el-tag>
+                  </div>
                 </div>
-                <div class="document-preview">
-                  <div ref="documentB" class="document-content" v-html="result.document_b.html_content" @scroll="onScrollB" />
+                <div class="document-preview" ref="documentPreviewB">
+                  <!-- 先加载第一页获取PDF信息 -->
+                  <VuePdfEmbed 
+                    v-if="result && fileData.file_b_id && !pdfDocB"
+                    :source="getPdfSource('b')"
+                    :page="1"
+                    style="display: none;"
+                    @loaded="(pdf) => handlePdfLoaded(pdf, 'b')"
+                  />
+                  <!-- 显示所有页面 -->
+                  <div v-if="pdfDocB && !pdfLoading" class="pdf-viewer">
+                    <VuePdfEmbed 
+                      v-for="pageNum in pdfDocB.numPages"
+                      :key="`pdf-b-page-${pageNum}-${forceReloadTimestamp}`"
+                      :source="getPdfSource('b')"
+                      :page="pageNum"
+                      class="pdf-page"
+                      @rendered="() => handlePdfPageRendered('b', pageNum)"
+                    />
+                  </div>
+                  <div v-if="pdfLoading" class="pdf-loading">
+                    <el-icon class="loading-icon"><Loading /></el-icon>
+                    <span>加载中...</span>
+                  </div>
                 </div>
               </div>
             </el-col>
@@ -187,20 +214,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch, onBeforeUnmount } from 'vue'
 import { ElMessage, ElLoading, type UploadFile } from 'element-plus'
-import { Document, UploadFilled, Search, CloseBold, Download } from '@element-plus/icons-vue'
+import { Document, UploadFilled, Search, CloseBold, Download, Loading } from '@element-plus/icons-vue'
 import { compareService } from '@/services/api'
 import type {
-  CompareRequest,
   CompareResponse,
   CompareFilesRequest
 } from '@/types/api'
+import VuePdfEmbed from 'vue-pdf-embed'
+import '@/assets/styles/pdf-embed.css'
+import { PDFSyncScroller } from '@/utils/PDFSyncScroller'
 
 // 响应式数据
-const inputMode = ref<'text' | 'file'>('text')
 const comparing = ref(false)
-const syncScroll = ref(true)
 
 // 配置数据
 const config = reactive({
@@ -209,13 +236,6 @@ const config = reactive({
   chunk_size: 300
 })
 
-// 文本输入数据
-const textData = reactive({
-  text_a: '',
-  text_b: '',
-  filename_a: '文档A',
-  filename_b: '文档B'
-})
 
 // 文件上传数据
 const fileData = reactive({
@@ -225,15 +245,160 @@ const fileData = reactive({
   file_b_id: ''
 })
 
+// PDF加载状态
+const pdfLoading = ref(false)
+const pdfLoadCount = ref(0)
+const pdfDocA = ref<any>(null)
+const pdfDocB = ref<any>(null)
+
+// 同步滚动控制
+const syncScrolling = ref(true)
+let pdfSyncScroller: PDFSyncScroller | null = null
+
+// 高亮版本控制
+const showHighlighted = ref(true)
+const hasHighlightedVersion = ref(false)
+const forceReloadTimestamp = ref(0)
+
+// PDF容器引用
+const documentPreviewA = ref<HTMLElement>()
+const documentPreviewB = ref<HTMLElement>()
+
+// PDF渲染状态跟踪
+const pdfRenderingStatus = reactive({
+  a: { rendering: false, rendered: false, pagesRendered: 0 },
+  b: { rendering: false, rendered: false, pagesRendered: 0 }
+})
+
 // 比对结果
 const result = ref<CompareResponse | null>(null)
 
+
+const handlePdfLoaded = (pdf: any, docKey: 'a' | 'b') => {
+  console.log(`PDF ${docKey} 加载完成，页数:`, pdf.numPages)
+  if (docKey === 'a') {
+    pdfDocA.value = pdf
+  } else {
+    pdfDocB.value = pdf
+  }
+  pdfLoadCount.value++
+  
+  // 重置渲染计数
+  pdfRenderingStatus[docKey].pagesRendered = 0
+  pdfRenderingStatus[docKey].rendered = false
+  
+  if (pdfLoadCount.value >= 2) {
+    pdfLoading.value = false
+    console.log('所有PDF加载完成，开始渲染页面')
+  }
+}
+
+// 处理PDF页面渲染事件
+const handlePdfPageRendered = (docKey: 'a' | 'b', pageNum: number) => {
+  console.log(`PDF ${docKey} 第${pageNum}页渲染完成`)
+  pdfRenderingStatus[docKey].pagesRendered++
+  
+  const totalPages = docKey === 'a' ? pdfDocA.value?.numPages : pdfDocB.value?.numPages
+  if (pdfRenderingStatus[docKey].pagesRendered >= totalPages) {
+    pdfRenderingStatus[docKey].rendered = true
+    console.log(`PDF ${docKey} 所有页面渲染完成`)
+  }
+  
+  // 检查是否两个PDF都渲染完成
+  const allRendered = pdfRenderingStatus.a.rendered && pdfRenderingStatus.b.rendered
+  if (allRendered) {
+    console.log('所有PDF渲染完成，设置同步滚动')
+    // 延迟一点确保DOM完全渲染
+    setTimeout(() => {
+      if (syncScrolling.value) {
+        setupSyncScrolling()
+      }
+    }, 300)
+  }
+}
+
 // DOM引用
-const documentA = ref<HTMLElement>()
-const documentB = ref<HTMLElement>()
 const uploadA = ref()
 const uploadB = ref()
 
+// 监听同步滚动开关变化
+watch(syncScrolling, (newValue) => {
+  if (newValue && pdfLoadCount.value >= 2) {
+    // 启用同步滚动
+    setupSyncScrolling()
+  } else {
+    // 禁用同步滚动
+    removeSyncScrolling()
+  }
+})
+
+// 监听高亮模式切换
+watch(showHighlighted, () => {
+  // 切换高亮模式时重新加载PDF B
+  if (hasHighlightedVersion.value) {
+    console.log(`切换到${showHighlighted.value ? '高亮' : '原始'}模式`)
+    // 重置PDF B的加载状态
+    pdfDocB.value = null
+    pdfRenderingStatus.b = { rendering: false, rendered: false, pagesRendered: 0 }
+    pdfLoadCount.value = 1  // 保持A文档已加载
+    
+    // 强制重新加载PDF - 通过改变时间戳触发重新渲染
+    forceReloadTimestamp.value = Date.now()
+  }
+})
+
+// 同步滚动功能
+const setupSyncScrolling = () => {
+  console.log('设置PDF同步滚动')
+  
+  const containerA = documentPreviewA.value
+  const containerB = documentPreviewB.value
+
+  if (containerA && containerB) {
+    try {
+      removeSyncScrolling() // 先清除现有的滚动监听器
+      pdfSyncScroller = new PDFSyncScroller(containerA, containerB)
+      console.log('PDF同步滚动设置成功')
+    } catch (error) {
+      console.error('设置PDF同步滚动失败:', error)
+    }
+  } else {
+    console.warn('无法找到PDF容器元素')
+  }
+}
+
+// 移除同步滚动
+const removeSyncScrolling = () => {
+  if (pdfSyncScroller) {
+    pdfSyncScroller.destroy()
+    pdfSyncScroller = null
+  }
+}
+
+
+// 认证token
+const authToken = ref(localStorage.getItem('auth_token') || '')
+
+// 获取PDF源URL
+const getPdfSource = (docKey: 'a' | 'b') => {
+  const timestamp = Date.now() + forceReloadTimestamp.value
+  if (docKey === 'a') {
+    const url = `/scdlsearch/api/compare/download/${fileData.file_a_id}?token=${authToken.value}&t=${timestamp}`
+    console.log('文档A URL:', url)
+    return url
+  } else {
+    // 文档B：根据高亮模式选择不同URL
+    if (showHighlighted.value && hasHighlightedVersion.value) {
+      const url = `/scdlsearch/api/compare/download/${fileData.file_b_id}/highlighted?token=${authToken.value}&t=${timestamp}`
+      console.log('文档B高亮URL:', url)
+      return url
+    } else {
+      const url = `/scdlsearch/api/compare/download/${fileData.file_b_id}?token=${authToken.value}&t=${timestamp}`
+      console.log('文档B原始URL:', url)
+      return url
+    }
+  }
+}
 
 const handleFileAChange = (file: UploadFile) => {
   fileData.file_a = file.raw || null
@@ -253,42 +418,6 @@ const removeFileB = () => {
   uploadB.value?.clearFiles()
 }
 
-const compareTexts = async () => {
-  if (!textData.text_a || !textData.text_b) {
-    ElMessage.warning('请输入两个文档的内容')
-    return
-  }
-
-  const loading = ElLoading.service({
-    lock: true,
-    text: '正在比对文档...',
-    background: 'rgba(0, 0, 0, 0.7)'
-  })
-
-  try {
-    comparing.value = true
-    
-    const request: CompareRequest = {
-      text_a: textData.text_a,
-      text_b: textData.text_b,
-      filename_a: textData.filename_a || '文档A',
-      filename_b: textData.filename_b || '文档B',
-      similarity_threshold_high: config.similarity_threshold_high,
-      similarity_threshold_medium: config.similarity_threshold_medium,
-      chunk_size: config.chunk_size
-    }
-
-    result.value = await compareService.compareTexts(request)
-    ElMessage.success('文档比对完成')
-    
-  } catch (error: any) {
-    console.error('文档比对失败:', error)
-    ElMessage.error(error.response?.data?.detail || '文档比对失败')
-  } finally {
-    comparing.value = false
-    loading.close()
-  }
-}
 
 const compareFiles = async () => {
   if (!fileData.file_a || !fileData.file_b) {
@@ -322,7 +451,25 @@ const compareFiles = async () => {
       chunk_size: config.chunk_size
     }
 
+    console.log('开始调用compareFiles API', request)
     result.value = await compareService.compareFiles(request)
+    console.log('compareFiles API调用成功', result.value)
+    
+    // 检查是否有高亮版本
+    console.log('完整比对结果:', JSON.stringify(result.value, null, 2))
+    console.log('metadata:', result.value.metadata)
+    console.log('highlighted_files:', result.value.metadata?.highlighted_files)
+    
+    if (result.value.metadata?.highlighted_files?.file_b) {
+      hasHighlightedVersion.value = true
+      showHighlighted.value = true
+      console.log('检测到高亮版本PDF:', result.value.metadata.highlighted_files.file_b)
+    } else {
+      hasHighlightedVersion.value = false
+      showHighlighted.value = false
+      console.log('未检测到高亮版本')
+    }
+    
     ElMessage.success('文档比对完成')
     
   } catch (error: any) {
@@ -347,18 +494,6 @@ const formatFileSize = (bytes: number) => {
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
-
-const onScrollA = () => {
-  if (syncScroll.value && documentB.value && documentA.value) {
-    documentB.value.scrollTop = documentA.value.scrollTop
-  }
-}
-
-const onScrollB = () => {
-  if (syncScroll.value && documentA.value && documentB.value) {
-    documentA.value.scrollTop = documentB.value.scrollTop
-  }
 }
 
 const downloadResult = () => {
@@ -400,12 +535,32 @@ const downloadResult = () => {
 
 const clearResult = () => {
   result.value = null
+  pdfLoadCount.value = 0
+  pdfDocA.value = null
+  pdfDocB.value = null
+  
+  // 重置渲染状态
+  pdfRenderingStatus.a = { rendering: false, rendered: false, pagesRendered: 0 }
+  pdfRenderingStatus.b = { rendering: false, rendered: false, pagesRendered: 0 }
+  
+  // 重置高亮状态
+  hasHighlightedVersion.value = false
+  showHighlighted.value = false
+  
+  
+  // 移除同步滚动监听器
+  removeSyncScrolling()
+  
   ElMessage.info('已清除比对结果')
 }
 
 // 生命周期
 onMounted(() => {
   // 可以在这里初始化一些数据
+})
+
+onBeforeUnmount(() => {
+  removeSyncScrolling()
 })
 </script>
 
@@ -663,11 +818,29 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
+.document-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .document-header h4 {
   margin: 0;
   font-size: 14px;
   color: #333333;
   font-weight: 600;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .chunk-count {
@@ -682,6 +855,92 @@ onMounted(() => {
   flex: 1;
   position: relative;
   min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #f9f9f9;
+}
+
+.pdf-viewer {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: block;
+  padding: 10px;
+  background: #f5f5f5;
+}
+
+.pdf-page {
+  display: block;
+  margin: 0 auto 20px auto;
+  max-width: 100%;
+}
+
+.pdf-page:last-child {
+  margin-bottom: 10px;
+}
+
+.pdf-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px; /* 减少最小高度 */
+  color: #666;
+}
+
+.loading-icon {
+  font-size: 32px;
+  margin-bottom: 10px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.html-content {
+  padding: 20px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-family: 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+}
+
+.html-content .highlight-high {
+  background-color: #ffcccc;
+  border: 1px solid #ff6666;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.html-content .highlight-medium {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.html-content .highlight-low {
+  background-color: #e3f2fd;
+  border: 1px solid #bbdefb;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.html-content .highlight-high:hover,
+.html-content .highlight-medium:hover,
+.html-content .highlight-low:hover {
+  opacity: 0.8;
 }
 
 .document-content {
@@ -774,4 +1033,5 @@ onMounted(() => {
 .summary-header .el-button .el-icon {
   margin-right: 4px;
 }
+
 </style>

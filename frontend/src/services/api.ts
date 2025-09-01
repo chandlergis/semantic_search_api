@@ -24,7 +24,7 @@ const API_BASE_URL = '/scdlsearch/api'
 // 创建 axios 实例
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 120000,  // 120秒超时
   headers: {
     'Content-Type': 'application/json'
   }

@@ -244,6 +244,22 @@ class DocumentComparator:
                    .replace("'", '&#x27;')
                    .replace('\n', '<br>'))
     
+    def _get_chunk_content_by_id(self, chunks: List[Dict], chunk_id: str) -> str:
+        """
+        根据chunk_id获取chunk内容
+        
+        Args:
+            chunks: 文档块列表
+            chunk_id: 块ID
+            
+        Returns:
+            块内容，如果未找到返回空字符串
+        """
+        for chunk in chunks:
+            if chunk['id'] == chunk_id:
+                return chunk['content']
+        return ""
+    
     def compare_documents(self, text_a: str, text_b: str, filename_a: str = "Document A", filename_b: str = "Document B") -> Dict:
         """
         比较两个文档并返回完整的比对结果
@@ -303,6 +319,8 @@ class DocumentComparator:
                     {
                         'chunk_a_id': match['chunk_a_id'],
                         'chunk_b_id': match['chunk_b_id'],
+                        'chunk_a': self._get_chunk_content_by_id(chunks_a, match['chunk_a_id']),
+                        'chunk_b': self._get_chunk_content_by_id(chunks_b, match['chunk_b_id']),
                         'similarity': match['similarity'],
                         'match_type': match['match_type'],
                         'link_id': f"link_{match['chunk_a_id']}_{match['chunk_b_id']}"

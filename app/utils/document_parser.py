@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+from datetime import datetime
 from typing import Optional
 from markitdown import MarkItDown
 
@@ -81,10 +82,26 @@ class DocumentParser:
             logger.info(f"Converting file: {file_path} (original: {original_filename})")
             
             # 使用MarkItDown转换文件
+            logger.info(f"Starting MarkItDown conversion for: {file_path}")
+            start_time = datetime.now()
             result = self.markitdown.convert(file_path)
+            conversion_time = (datetime.now() - start_time).total_seconds()
+            
+            logger.info(f"MarkItDown conversion completed in {conversion_time:.2f} seconds")
             
             if result and result.text_content:
                 logger.info(f"Conversion successful, content length: {len(result.text_content)}")
+                
+                # 调试：检查前500个字符的内容
+                preview = result.text_content[:500]
+                logger.info(f"Content preview: {preview}")
+                
+                # 检查是否包含二进制数据
+                if self._contains_binary_data(result.text_content):
+                    logger.warning("Detected possible binary data in extracted text")
+                    # 尝试使用备用方法提取文本
+                    return self._extract_text_with_pymupdf(file_path)
+                
                 return result.text_content
             else:
                 raise ValueError("No content extracted from file")
@@ -92,6 +109,52 @@ class DocumentParser:
         except Exception as e:
             logger.error(f"Error converting file {file_path}: {str(e)}")
             raise ValueError(f"Failed to convert file: {str(e)}")
+    
+    def _contains_binary_data(self, text: str) -> bool:
+        """检查文本是否包含二进制数据"""
+        if not text:
+            return False
+        
+        # 检查常见二进制数据特征
+        hex_chars = sum(1 for c in text if c in '0123456789abcdefABCDEF')
+        if hex_chars / len(text) > 0.6:  # 60%以上为十六进制字符
+            return True
+            
+        special_chars = sum(1 for c in text if c in '_~')
+        if special_chars / len(text) > 0.2:  # 20%以上为特殊字符
+            return True
+            
+        return False
+    
+    def _extract_text_with_pymupdf(self, file_path: str) -> str:
+        """使用PyMuPDF作为备用方法提取PDF文本"""
+        try:
+            import fitz  # PyMuPDF
+            
+            logger.info(f"Using PyMuPDF as fallback for: {file_path}")
+            
+            doc = fitz.open(file_path)
+            text_parts = []
+            
+            for page_num in range(doc.page_count):
+                page = doc[page_num]
+                text = page.get_text()
+                if text.strip():
+                    text_parts.append(text)
+            
+            doc.close()
+            
+            full_text = "\n\n".join(text_parts)
+            logger.info(f"PyMuPDF extraction successful, content length: {len(full_text)}")
+            
+            if full_text.strip():
+                return full_text
+            else:
+                raise ValueError("PyMuPDF extracted no text")
+                
+        except Exception as e:
+            logger.error(f"PyMuPDF extraction failed: {str(e)}")
+            raise ValueError(f"Fallback text extraction failed: {str(e)}")
     
     async def convert_upload_to_markdown(self, file_content: bytes, original_filename: str) -> str:
         """将上传的文件内容转换为Markdown格式"""

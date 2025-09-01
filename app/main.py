@@ -4,7 +4,14 @@ from app.routers import users, documents, search, projects, chat, compare
 from app.db.base import Base, engine
 
 # 配置日志
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('/app/app.log')
+    ]
+)
 
 app = FastAPI(root_path="/scdlsearch")
 

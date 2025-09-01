@@ -13,6 +13,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         gcc \
         postgresql-client \
+        libpango-1.0-0 \
+        libharfbuzz0b \
+        libpangoft2-1.0-0 \
+        fonts-dejavu \
     && rm -rf /var/lib/apt/lists/*
 
 
