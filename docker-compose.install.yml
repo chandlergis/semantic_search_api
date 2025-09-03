@@ -1,8 +1,0 @@
-
-services:
-  npm:
-    image: node:18-alpine
-    working_dir: /app
-    volumes:
-      - ./frontend:/app
-    command: npm install @celhive/pdf-viewer --save
