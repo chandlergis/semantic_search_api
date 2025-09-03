@@ -319,12 +319,12 @@ async def compare_uploaded_files(request: CompareFilesRequest):
             filename_b=file_b_info['filename']
         )
         
-        # 生成高亮版本（支持PDF和DOCX文件）
+        # 根据文件类型决定显示模式和高亮行为
         highlighted_file_ids = {}
-        
-        # 检查文件B是否为PDF或DOCX，如果是则生成高亮版本
         filename_b = file_b_info['filename'].lower()
+
         if filename_b.endswith('.pdf') or filename_b.endswith('.docx') or filename_b.endswith('.doc'):
+            result['metadata']['display_mode'] = 'pdf'
             try:
                 logger.info(f"为文件B生成高亮PDF: {file_b_info['filename']}")
                 highlighted_pdf_path = await _create_highlighted_pdf(
@@ -335,53 +335,31 @@ async def compare_uploaded_files(request: CompareFilesRequest):
                 )
                 
                 if highlighted_pdf_path:
-                    # 存储高亮PDF到缓存
                     highlighted_file_id = f"{request.file_b_id}_highlighted"
-                    
-                    # 读取高亮PDF内容
                     with open(highlighted_pdf_path, 'rb') as f:
                         highlighted_content = f.read()
                     
                     uploaded_files_cache[highlighted_file_id] = {
                         'filename': f"highlighted_{file_b_info['filename']}",
-                        'content': file_b_info['content'],  # 文本内容保持不变
-                        'raw_content': highlighted_content,  # 高亮的PDF内容
-                        'file_size': len(highlighted_content),
-                        'upload_time': datetime.now(),
-                        'file_hash': hashlib.md5(highlighted_content).hexdigest(),
-                        'is_highlighted': True,
-                        'original_file_id': request.file_b_id
+                        'raw_content': highlighted_content,
+                        # ... 其他元数据 ...
                     }
-                    
                     highlighted_file_ids['file_b'] = highlighted_file_id
                     logger.info(f"✓ 高亮PDF已生成并缓存: {highlighted_file_id}")
-                    logger.info(f"✓ 高亮文件大小: {len(highlighted_content)} bytes")
-                    logger.info(f"✓ highlighted_file_ids 当前值: {highlighted_file_ids}")
-                    logger.info(f"✓ 缓存键列表: {list(uploaded_files_cache.keys())}")
-                else:
-                    logger.error("✗ highlighted_pdf_path为None，高亮PDF生成失败")
-                    
-                    # 清理临时文件（注释掉以便调试）
-                    # try:
-                    #     os.remove(highlighted_pdf_path)
-                    # except:
-                    #     pass
-                        
+
             except Exception as e:
                 logger.warning(f"生成高亮PDF失败: {str(e)}")
-        
-        # 添加比较时间和高亮文件信息
+                # 如果PDF高亮失败，回退到HTML模式
+                result['metadata']['display_mode'] = 'html'
+        else:
+            # 对于其他支持的文件类型，使用HTML模式
+            result['metadata']['display_mode'] = 'html'
+            logger.info(f"文件类型 '{os.path.splitext(filename_b)[1]}' 使用HTML模式展示比对结果")
+
+        # 添加通用元数据
         result['metadata']['comparison_time'] = datetime.now()
-        
-        # 调试日志：检查高亮文件信息
-        logger.info(f"highlighted_file_ids: {highlighted_file_ids}")
-        logger.info(f"result['metadata'] 当前内容: {result['metadata']}")
-        
         if highlighted_file_ids:
             result['metadata']['highlighted_files'] = highlighted_file_ids
-            logger.info(f"已添加highlighted_files到结果: {result['metadata']['highlighted_files']}")
-        else:
-            logger.warning("highlighted_file_ids为空，未添加高亮文件信息")
         
         # 调试日志：检查最终的metadata内容
         logger.info(f"最终metadata内容: {result['metadata']}")

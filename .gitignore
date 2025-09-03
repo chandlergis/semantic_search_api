@@ -148,3 +148,14 @@ frontend/node_modules/
 # package-lock.json
 package-lock.json
 frontend/package-lock.json
+
+# Offline package directory
+offline-package/
+
+# Temporary files directory
+temp_files/
+
+# Compressed files
+*.tar
+*.tar.gz
+*.zip

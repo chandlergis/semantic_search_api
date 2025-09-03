@@ -12,7 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"  # 更改端口避免冲突
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -29,7 +29,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "6380:6379"  # 更改端口避免冲突
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -39,21 +39,21 @@ services:
     networks:
       - app-network
 
-  # 后端API服务（使用本地构建的镜像）
+  # 后端API服务
   backend:
-    image: semantic-search-backend:offline
+    image: semantic-search-backend:offline  # 使用预构建的离线镜像
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/semantic_search
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=your-secret-key-here-change-in-production
-      - ENVIRONMENT=production
+      - ENVIRONMENT=production  # 更改为生产环境
       - MAX_UPLOAD_SIZE=52428800
       - COMPARE_CACHE_TTL=3600
     volumes:
-      - uploads:/app/uploads
-      - temp_files:/app/temp_files
+      - ./uploads:/app/uploads
+      - ./temp_files:/app/temp_files  # 临时文件存储
     ports:
-      - "9000:8500"
+      - "9001:8500"  # 更改端口避免冲突
     depends_on:
       db:
         condition: service_healthy
@@ -69,13 +69,13 @@ services:
     networks:
       - app-network
 
-  # 前端Web应用（使用本地构建的镜像）
+  # 前端Web应用
   frontend:
-    image: semantic-search-frontend:offline
+    image: semantic-search-frontend:offline  # 使用预构建的离线镜像
     environment:
-      - VITE_API_BASE_URL=http://localhost:9000
+      - VITE_API_BASE_URL=http://localhost:9001  # 更新为新的后端端口
     ports:
-      - "30081:80"
+      - "30082:80"  # 更改端口避免冲突
     depends_on:
       - backend
     restart: unless-stopped
@@ -86,10 +86,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
-    driver: local
-  uploads:
-    driver: local
-  temp_files:
     driver: local
 
 networks:

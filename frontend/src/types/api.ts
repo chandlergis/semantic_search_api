@@ -166,6 +166,9 @@ export interface AlgorithmParams {
 export interface ComparisonMetadata {
   comparison_time: string | null
   algorithm_params: AlgorithmParams
+  display_mode?: 'pdf' | 'html'
+  highlighting_supported?: boolean
+  highlighting_skipped_reason?: string | null
   highlighted_files?: {
     file_a?: string
     file_b?: string

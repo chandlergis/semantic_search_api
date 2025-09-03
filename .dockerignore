@@ -1,0 +1,69 @@
+# Git
+.git
+.gitignore
+.gitmodules
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Uploads directory (exclude uploaded files but keep directory structure)
+uploads/*
+!uploads/.gitkeep
+
+# Offline package directory
+offline-package/
+
+# Frontend (already handled by frontend/.dockerignore)
+frontend/node_modules/
+frontend/dist/
+
+# Large files
+*.tar
+*.tar.gz
+*.zip
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+test_*
+debug_*

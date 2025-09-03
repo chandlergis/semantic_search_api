@@ -1,8 +1,10 @@
 import logging
 import os
 import tempfile
+import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
+from concurrent.futures import ThreadPoolExecutor
 from markitdown import MarkItDown
 
 # Configure logging
@@ -43,8 +45,10 @@ FORBIDDEN_EXTENSIONS = [
 ]
 
 class DocumentParser:
-    def __init__(self):
+    def __init__(self, max_workers: int = 4):
         self.markitdown = MarkItDown()
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.max_workers = max_workers
     
     def is_forbidden_file(self, filename: str) -> bool:
         """检查文件是否为禁止类型"""
@@ -81,12 +85,27 @@ class DocumentParser:
             
             logger.info(f"Converting file: {file_path} (original: {original_filename})")
             
-            # 使用MarkItDown转换文件
+            # 检查文件大小，决定使用同步还是异步处理
+            file_size = os.path.getsize(file_path)
+            large_file_threshold = 5 * 1024 * 1024  # 5MB
+            
+            if file_size > large_file_threshold:
+                logger.info(f"Large file detected ({file_size} bytes), using async processing")
+                return await self._process_large_document_async(file_path, original_filename)
+            
+            # 小文件使用同步处理
             logger.info(f"Starting MarkItDown conversion for: {file_path}")
             start_time = datetime.now()
-            result = self.markitdown.convert(file_path)
-            conversion_time = (datetime.now() - start_time).total_seconds()
             
+            # 使用线程池执行转换
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                self.executor,
+                self.markitdown.convert,
+                file_path
+            )
+            
+            conversion_time = (datetime.now() - start_time).total_seconds()
             logger.info(f"MarkItDown conversion completed in {conversion_time:.2f} seconds")
             
             if result and result.text_content:
@@ -100,7 +119,12 @@ class DocumentParser:
                 if self._contains_binary_data(result.text_content):
                     logger.warning("Detected possible binary data in extracted text")
                     # 尝试使用备用方法提取文本
-                    return self._extract_text_with_pymupdf(file_path)
+                    fallback_result = await loop.run_in_executor(
+                        self.executor,
+                        self._extract_text_with_pymupdf,
+                        file_path
+                    )
+                    return fallback_result
                 
                 return result.text_content
             else:
@@ -136,14 +160,24 @@ class DocumentParser:
             doc = fitz.open(file_path)
             text_parts = []
             
-            for page_num in range(doc.page_count):
-                page = doc[page_num]
-                text = page.get_text()
-                if text.strip():
-                    text_parts.append(text)
+            # 使用线程池并行处理页面
+            def process_page(page_num):
+                try:
+                    page = doc[page_num]
+                    text = page.get_text()
+                    return text.strip() if text.strip() else None
+                except Exception as e:
+                    logger.warning(f"Error processing page {page_num}: {e}")
+                    return None
+            
+            # 并行处理所有页面
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                results = list(executor.map(process_page, range(doc.page_count)))
             
             doc.close()
             
+            # 收集有效结果
+            text_parts = [text for text in results if text]
             full_text = "\n\n".join(text_parts)
             logger.info(f"PyMuPDF extraction successful, content length: {len(full_text)}")
             
@@ -155,6 +189,41 @@ class DocumentParser:
         except Exception as e:
             logger.error(f"PyMuPDF extraction failed: {str(e)}")
             raise ValueError(f"Fallback text extraction failed: {str(e)}")
+    
+    async def _process_large_document_async(self, file_path: str, original_filename: str) -> str:
+        """异步处理大型文档"""
+        try:
+            logger.info(f"Starting async processing for large document: {file_path}")
+            
+            # 使用线程池执行CPU密集型任务
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                self.executor,
+                self.markitdown.convert,
+                file_path
+            )
+            
+            if result and result.text_content:
+                logger.info(f"Async conversion successful, content length: {len(result.text_content)}")
+                
+                # 检查是否包含二进制数据
+                if self._contains_binary_data(result.text_content):
+                    logger.warning("Detected possible binary data in extracted text, using PyMuPDF fallback")
+                    # 使用PyMuPDF作为备用
+                    fallback_result = await loop.run_in_executor(
+                        self.executor,
+                        self._extract_text_with_pymupdf,
+                        file_path
+                    )
+                    return fallback_result
+                
+                return result.text_content
+            else:
+                raise ValueError("No content extracted from file")
+                
+        except Exception as e:
+            logger.error(f"Async processing failed for {file_path}: {str(e)}")
+            raise
     
     async def convert_upload_to_markdown(self, file_content: bytes, original_filename: str) -> str:
         """将上传的文件内容转换为Markdown格式"""
