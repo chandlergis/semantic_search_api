@@ -10,9 +10,10 @@ RUN apt-get update \
         libpango-1.0-0 \
         libharfbuzz0b \
         libpangoft2-1.0-0 \
+        libcairo2 \
+        libgdk-pixbuf-2.0-0 \
         fonts-dejavu \
-        fonts-wqy-microhei \
-    && rm -rf /var/lib/apt/lists/*
+        fonts-wqy-microhei
 
 # 复制requirements文件
 COPY requirements.txt .
@@ -39,9 +40,12 @@ RUN apt-get update \
         libpango-1.0-0 \
         libharfbuzz0b \
         libpangoft2-1.0-0 \
+        libcairo2 \
+        libgdk-pixbuf-2.0-0 \
         fonts-dejavu \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
+
 
 # 从构建阶段复制已安装的包
 COPY --from=builder /root/.local /root/.local

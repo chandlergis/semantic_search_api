@@ -46,7 +46,7 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/semantic_search
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=your-secret-key-here-change-in-production
-      - ENVIRONMENT=production  # 更改为生产环境
+      - ENVIRONMENT=development # 更改为生产环境
       - MAX_UPLOAD_SIZE=52428800
       - COMPARE_CACHE_TTL=3600
     volumes:

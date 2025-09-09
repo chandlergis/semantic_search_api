@@ -33,6 +33,7 @@ class AlgorithmParams(BaseModel):
 
 class ComparisonMetadata(BaseModel):
     """比较元数据模型"""
+    display_mode: str = Field(default='pdf', description="前端显示模式: pdf或html")
     comparison_time: Optional[datetime] = Field(None, description="比较时间")
     algorithm_params: AlgorithmParams = Field(..., description="算法参数")
     highlighted_files: Optional[Dict[str, str]] = Field(default=None, description="高亮文件信息")

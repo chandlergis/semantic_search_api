@@ -323,7 +323,7 @@ async def compare_uploaded_files(request: CompareFilesRequest):
         highlighted_file_ids = {}
         filename_b = file_b_info['filename'].lower()
 
-        if filename_b.endswith('.pdf') or filename_b.endswith('.docx') or filename_b.endswith('.doc'):
+        if filename_b.endswith('.pdf'):
             result['metadata']['display_mode'] = 'pdf'
             try:
                 logger.info(f"为文件B生成高亮PDF: {file_b_info['filename']}")

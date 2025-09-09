@@ -198,7 +198,7 @@ class DocumentComparator:
         # 基于清理后的文本计算相似度
         total_chars_a = len(clean_text_a)
         matched_chars_a = sum(len(m['chunk_a']) for m in matches)
-        overall_similarity = matched_chars_a / total_chars_a if total_chars_a > 0 else 0
+        overall_similarity = min(matched_chars_a / total_chars_a if total_chars_a > 0 else 0, 1.0)
         logger.info(f"文档比对完成，整体相似度: {overall_similarity:.3f}")
         
         high_matches = len([m for m in matches if m['match_type'] == 'high'])
